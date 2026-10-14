@@ -490,10 +490,12 @@ function printShoppingList() {
 
 function wirePhotoInput(fileInput, nameEl, previewEl, btn) {
   fileInput.addEventListener("change", () => {
-    const f = fileInput.files[0];
-    if (f) {
-      nameEl.textContent = f.name;
-      previewEl.src = URL.createObjectURL(f);
+    const files = fileInput.files;
+    if (files && files.length) {
+      nameEl.textContent = files.length > 1
+        ? `${files.length} photos chosen (${files[0].name}, …)`
+        : files[0].name;
+      previewEl.src = URL.createObjectURL(files[0]);
       previewEl.hidden = false;
       btn.disabled = false;
     }
@@ -517,9 +519,12 @@ function wireDropZone(zone, fileInput) {
     zone.addEventListener(evt, (e) => { e.preventDefault(); zone.classList.remove("dragover"); }));
   zone.addEventListener("drop", (e) => {
     const files = e.dataTransfer && e.dataTransfer.files;
-    if (files && files.length && files[0].type.startsWith("image/")) {
+    const images = files
+      ? [...files].filter((f) => f.type.startsWith("image/"))
+      : [];
+    if (images.length) {
       const dt = new DataTransfer();
-      dt.items.add(files[0]);
+      images.forEach((f) => dt.items.add(f));
       fileInput.files = dt.files;
       fileInput.dispatchEvent(new Event("change"));
     } else {
@@ -555,31 +560,77 @@ async function scanShelfPhoto() {
   }
 }
 
+/* Shared success handling for all three receipt/order import paths. */
+function handleReceiptResult(data, msg, doneLabel) {
+  state.inventory = data.inventory;
+  state.plan = data.plan;
+  renderInventory();
+  renderShopping();
+  setMsg(msg, `✅ Restocked ${data.logs.length} items from ${data.store_name}:`, "ok");
+  // Receipt logs use light markdown (**bold**, *italic*) — render it safely.
+  $("#receipt-logs").innerHTML = data.logs.map((entry) => {
+    let html = esc(entry)
+      .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+      .replace(/\*(.+?)\*/g, "<i>$1</i>");
+    return `<p>${html}</p>`;
+  }).join("");
+  toast(doneLabel || "Receipt scanned!");
+}
+
 async function scanReceipt() {
   if (!requireKey()) return;
   const fileInput = $("#receipt-file");
   const msg = $("#receipt-msg");
   const btn = $("#receipt-btn");
-  if (!fileInput.files[0]) return;
+  if (!fileInput.files.length) return;
   btn.disabled = true;
   setMsg(msg, "Reading receipt, decoding abbreviations, and updating inventory…");
   try {
     const fd = new FormData();
-    fd.append("file", fileInput.files[0]);
+    for (const f of fileInput.files) fd.append("files", f);
     const data = await api("/api/receipt/scan", { method: "POST", body: fd });
-    state.inventory = data.inventory;
-    state.plan = data.plan;
-    renderInventory();
-    renderShopping();
-    setMsg(msg, `✅ Restocked ${data.logs.length} items from ${data.store_name}:`, "ok");
-    // Receipt logs use light markdown (**bold**, *italic*) — render it safely.
-    $("#receipt-logs").innerHTML = data.logs.map((entry) => {
-      let html = esc(entry)
-        .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
-        .replace(/\*(.+?)\*/g, "<i>$1</i>");
-      return `<p>${html}</p>`;
-    }).join("");
-    toast("Receipt scanned!");
+    handleReceiptResult(data, msg, "Receipt scanned!");
+  } catch (e) {
+    setMsg(msg, e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function scanReceiptPdf() {
+  if (!requireKey()) return;
+  const fileInput = $("#receipt-pdf-file");
+  const msg = $("#receipt-msg");
+  const btn = $("#receipt-pdf-btn");
+  if (!fileInput.files[0]) return;
+  btn.disabled = true;
+  setMsg(msg, "Reading your order PDF and updating inventory…");
+  try {
+    const fd = new FormData();
+    fd.append("file", fileInput.files[0]);
+    const data = await api("/api/receipt/scan-pdf", { method: "POST", body: fd });
+    handleReceiptResult(data, msg, "Order PDF imported!");
+  } catch (e) {
+    setMsg(msg, e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function pasteReceiptText() {
+  if (!requireKey()) return;
+  const msg = $("#receipt-msg");
+  const btn = $("#receipt-paste-btn");
+  const text = $("#receipt-paste-text").value.trim();
+  if (!text) {
+    setMsg(msg, "Paste your order or receipt text first.", "err");
+    return;
+  }
+  btn.disabled = true;
+  setMsg(msg, "Reading your pasted order and updating inventory…");
+  try {
+    const data = await api("/api/receipt/paste", { method: "POST", body: { text } });
+    handleReceiptResult(data, msg, "Order imported!");
   } catch (e) {
     setMsg(msg, e.message, "err");
   } finally {
@@ -679,6 +730,16 @@ function init() {
   wirePhotoInput($("#receipt-file"), $("#receipt-file-name"), $("#receipt-preview"), $("#receipt-btn"));
   wireDropZone($("#receipt-drop"), $("#receipt-file"));
   $("#receipt-btn").addEventListener("click", scanReceipt);
+  const pdfInput = $("#receipt-pdf-file");
+  pdfInput.addEventListener("change", () => {
+    const f = pdfInput.files[0];
+    if (f) {
+      $("#receipt-pdf-name").textContent = f.name;
+      $("#receipt-pdf-btn").disabled = false;
+    }
+  });
+  $("#receipt-pdf-btn").addEventListener("click", scanReceiptPdf);
+  $("#receipt-paste-btn").addEventListener("click", pasteReceiptText);
 
   refreshAll().catch((e) => toast(`Could not load data: ${e.message}`));
 }
