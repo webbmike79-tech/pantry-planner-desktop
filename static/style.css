@@ -1,0 +1,326 @@
+/* Pantry Planner — DESKTOP edition.
+   Same Halloween / October palette variables as the mobile PWA (from app.py THEMES). */
+:root {
+  --bg: #16121d;
+  --card: #241d30;
+  --accent: #ff7518;
+  --accent-soft: #ffb347;
+  --text: #f8f5fa;
+  --muted: rgba(248, 245, 250, 0.65);
+  --border: rgba(255, 117, 24, 0.35);
+  --danger: #d64545;
+  --radius: 12px;
+  --sidebar-w: 248px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--accent-soft); }
+
+h1 { font-size: 1.6rem; margin: 0; }
+h2 { font-size: 1.3rem; margin: 6px 0 14px; }
+h3 { font-size: 1.05rem; margin: 0 0 12px; }
+
+/* ---------- Top bar & status ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 24px;
+  background: linear-gradient(90deg, var(--card), var(--bg));
+  border-bottom: 2px solid var(--accent);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.topbar-title { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.banner {
+  background: linear-gradient(90deg, var(--card), rgba(255, 117, 24, 0.27));
+  border-left: 5px solid var(--accent);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-bar { display: flex; gap: 10px; }
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  text-align: center;
+  min-width: 104px;
+}
+.stat-num { display: block; font-size: 1.25rem; font-weight: 700; }
+.stat-label { display: block; font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+/* ---------- Layout: sidebar + content ---------- */
+.layout { display: flex; align-items: stretch; min-height: calc(100vh - 82px); }
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sidenav { display: flex; flex-direction: column; gap: 6px; }
+.sidenav button {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.98rem; font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sidenav button:hover { background: rgba(255, 117, 24, 0.12); color: var(--text); }
+.sidenav button.active {
+  background: rgba(255, 117, 24, 0.18);
+  border-color: var(--border);
+  color: var(--accent-soft);
+}
+.sidenav .nav-emoji { font-size: 1.3rem; }
+.side-note { color: var(--muted); font-size: 0.82rem; line-height: 1.5; padding: 0 6px; }
+
+main { flex: 1; min-width: 0; padding: 22px 28px 40px; }
+
+/* ---------- Cards & columns ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.two-col-scan { grid-template-columns: minmax(320px, 5fr) 7fr; }
+.two-col .card { margin-bottom: 0; }
+
+.field-label { display: block; font-weight: 600; margin: 14px 0 6px; }
+.field-label:first-child { margin-top: 0; }
+.hint { color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
+.empty-note { color: var(--muted); font-size: 0.92rem; padding: 4px 0; }
+.form-msg { min-height: 1.2em; font-size: 0.92rem; margin: 8px 0 0; }
+.form-msg.ok { color: #7ee2a0; }
+.form-msg.err { color: #ff9c9c; }
+
+input[type="text"], input[type="number"], input[type="password"],
+textarea, select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 0.98rem;
+  font-family: inherit;
+}
+textarea { resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.97rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover { border-color: var(--accent-soft); }
+.btn-primary { background: var(--accent); border-color: var(--accent-soft); color: #fff; font-weight: 700; }
+.btn-accent { background: var(--card); border-color: var(--accent); color: var(--accent-soft); width: 100%; }
+.btn-danger { border-color: var(--danger); color: #ff9c9c; }
+.btn-ghost { background: transparent; border: none; color: var(--muted); font-weight: 500; width: 100%; }
+.btn-ghost small { display: block; font-size: 0.78rem; }
+.btn-big { padding: 13px 22px; font-size: 1.02rem; }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn-row { display: flex; gap: 8px; align-items: center; }
+.btn-row .btn { margin-top: 10px; }
+.btn-row input { flex: 1; }
+.card > .btn, .two-col .card > .btn-primary { width: 100%; }
+.file-name { color: var(--muted); font-size: 0.85rem; margin: 6px 0 0; text-align: center; }
+.photo-preview { width: 100%; max-height: 300px; object-fit: contain; border-radius: 10px; margin-top: 10px; background: var(--bg); }
+
+/* ---------- Segmented control ---------- */
+.segmented { display: flex; gap: 6px; }
+.segmented button {
+  flex: 1; padding: 10px 4px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font-size: 0.95rem; font-weight: 600;
+}
+.segmented button.active { background: var(--accent); color: #fff; border-color: var(--accent-soft); }
+
+/* ---------- Drag & drop zones ---------- */
+.dropzone {
+  margin-top: 14px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 26px 16px;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dropzone:hover, .dropzone:focus-visible { border-color: var(--accent-soft); outline: none; }
+.dropzone.dragover {
+  border-color: var(--accent);
+  background: rgba(255, 117, 24, 0.14);
+  color: var(--text);
+}
+.dropzone-icon { font-size: 2.2rem; }
+.dropzone p { margin: 8px 0 0; line-height: 1.5; font-size: 0.94rem; }
+
+/* ---------- Inventory table ---------- */
+.inv-table-wrap { overflow-x: auto; }
+.inv-table { width: 100%; border-collapse: collapse; }
+.inv-table th {
+  text-align: left; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); padding: 6px 6px; border-bottom: 1px solid var(--border);
+}
+.inv-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); vertical-align: middle; }
+.inv-table tr:last-child td { border-bottom: none; }
+.inv-table .col-qty { width: 84px; }
+.inv-table .col-unit { width: 92px; }
+.inv-table .col-loc { width: 148px; }
+.inv-table .col-cat { width: 158px; }
+.inv-table .col-del { width: 40px; }
+.inv-table input, .inv-table select { padding: 7px 8px; font-size: 0.93rem; }
+.inv-del {
+  background: transparent; border: none; color: #ff9c9c;
+  font-size: 1.1rem; cursor: pointer; padding: 4px 6px;
+}
+.inv-del:hover { color: var(--danger); }
+
+/* ---------- Diet page ---------- */
+.day-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin-top: 8px; }
+.day-grid label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px; }
+.tag-list { display: flex; flex-direction: column; gap: 2px; }
+.check-line { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 0.96rem; cursor: pointer; }
+.check-line input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+
+/* ---------- Menu page ---------- */
+.menu-toolbar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.menu-toolbar .btn { margin-top: 0; }
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.info-box {
+  background: var(--card); border: 1px solid var(--border); border-left: 5px solid var(--accent);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.95rem; line-height: 1.5;
+}
+.day-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+}
+.day-card.cooked { opacity: 0.75; }
+.day-card .btn { width: 100%; }
+.day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.day-head h3 { margin: 0; font-size: 1.05rem; }
+.badge { font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.badge.planned { color: var(--accent-soft); }
+.badge.done { color: #7ee2a0; }
+.meal { margin-top: 12px; }
+.meal h4 { margin: 0 0 2px; font-size: 0.99rem; }
+.meal .cook-time { color: var(--muted); font-size: 0.83rem; }
+.meal details { margin-top: 4px; }
+.meal summary { color: var(--accent-soft); cursor: pointer; font-size: 0.9rem; padding: 4px 0; }
+.meal ol { margin: 6px 0 0; padding-left: 20px; }
+.meal li { margin-bottom: 4px; line-height: 1.45; font-size: 0.93rem; }
+.deduct-note { color: var(--muted); font-size: 0.83rem; margin-top: 10px; line-height: 1.4; }
+
+/* ---------- Shopping page ---------- */
+.shop-cat { font-size: 0.98rem; margin: 14px 0 2px; color: var(--accent-soft); }
+.shop-cat:first-child { margin-top: 0; }
+.shop-item small { color: var(--muted); display: block; margin-left: 29px; }
+.shop-item.bought { opacity: 0.55; }
+.shop-item.bought .shop-name { text-decoration: line-through; }
+.sep { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 16px 0 6px; }
+#receipt-logs { font-size: 0.92rem; line-height: 1.5; }
+#receipt-logs p { margin: 4px 0; }
+
+/* ---------- Pages ---------- */
+.tab-page { display: none; }
+.tab-page.active { display: block; }
+
+/* ---------- First-run setup overlay ---------- */
+.setup-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(10, 7, 16, 0.88);
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px;
+}
+.setup-overlay[hidden] { display: none; }
+.setup-card {
+  background: var(--card); border: 1px solid var(--accent);
+  border-radius: 16px; padding: 28px 26px; max-width: 460px; width: 100%;
+  text-align: center; max-height: 92vh; overflow-y: auto;
+}
+.setup-card h2 { margin: 6px 0 8px; font-size: 1.3rem; }
+.setup-card p { line-height: 1.5; color: var(--text); }
+.setup-card .btn { width: 100%; }
+.setup-emoji { font-size: 2.6rem; }
+.setup-card .field-label { text-align: left; }
+
+/* ---------- Toast ---------- */
+#toast {
+  position: fixed; left: 50%; transform: translateX(-50%) translateY(20px);
+  bottom: 22px;
+  background: var(--accent); color: #fff; font-weight: 600;
+  padding: 11px 18px; border-radius: 24px; opacity: 0; pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s; z-index: 90;
+  max-width: 60vw; text-align: center; font-size: 0.95rem;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- Narrow windows: collapse gracefully ---------- */
+@media (max-width: 900px) {
+  .two-col, .two-col-scan { grid-template-columns: 1fr; }
+  .topbar { flex-direction: column; align-items: flex-start; }
+  .sidebar { width: 200px; }
+}
+
+/* ---------- Print: shopping list only ---------- */
+#print-area { display: none; }
+@media print {
+  body { background: #fff; color: #000; }
+  .app-shell, #toast, .setup-overlay { display: none !important; }
+  #print-area {
+    display: block;
+    color: #000;
+    font-family: Georgia, "Times New Roman", serif;
+    padding: 12px 8px;
+  }
+  #print-area h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  #print-area h2 { font-size: 1.2rem; margin: 18px 0 6px; border-bottom: 1px solid #999; padding-bottom: 3px; }
+  #print-area h3 { font-size: 1.02rem; margin: 12px 0 4px; }
+  #print-area .print-meta { color: #444; margin: 0 0 8px; }
+  #print-area ul { margin: 4px 0 8px; padding-left: 22px; }
+  #print-area li { margin-bottom: 4px; line-height: 1.4; }
+  #print-area .print-items { list-style: none; padding-left: 4px; }
+  #print-area .print-items li.bought { text-decoration: line-through; color: #555; }
+}
