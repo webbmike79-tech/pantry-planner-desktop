@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+google-genai
+pillow
+pydantic
+pandas
+python-multipart
+pywebview
