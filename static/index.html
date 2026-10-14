@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🥘 Pantry Planner — Desktop</title>
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== First-run Gemini key setup (shown when no key is stored) ===== -->
+<div id="setup-screen" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">🔑</div>
+    <h2>One quick setup</h2>
+    <p>This app runs on Google's <b>free</b> Gemini AI. Grab your free key once —
+       takes about 30 seconds, <b>no credit card</b>.</p>
+    <a class="btn btn-primary btn-big" href="https://aistudio.google.com/apikey"
+       target="_blank" rel="noopener">🔑 Get My Free Gemini Key</a>
+    <label class="field-label" for="setup-key-input">Then paste your key here:</label>
+    <input id="setup-key-input" type="password" placeholder="Paste your Gemini API key"
+           autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button id="setup-save-btn" class="btn btn-primary btn-big">Save &amp; Connect</button>
+    <p id="setup-msg" class="form-msg" role="status"></p>
+    <button id="setup-skip-btn" class="btn btn-ghost">Browse without a key
+      <small>(photo scans &amp; menu generation need one)</small></button>
+  </div>
+</div>
+
+<div class="app-shell">
+  <!-- ===== Top bar: title + status ===== -->
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>🥘 Pantry Planner</h1>
+      <div class="banner">🎃 Spooky Harvest Kitchen Mode — Desktop</div>
+    </div>
+    <div class="status-bar">
+      <div class="stat"><span class="stat-num" id="stat-stock">0</span><span class="stat-label">📦 Stocked Items</span></div>
+      <div class="stat"><span class="stat-num" id="stat-headcount">–</span><span class="stat-label">👨‍👩‍👧 Headcount</span></div>
+      <div class="stat"><span class="stat-num" id="stat-cooked">0/7</span><span class="stat-label">🍳 Meals Cooked</span></div>
+      <div class="stat"><span class="stat-num" id="stat-tobuy">0</span><span class="stat-label">🛒 Items To Buy</span></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- ===== Left sidebar navigation ===== -->
+    <aside class="sidebar">
+      <nav class="sidenav">
+        <button data-tab="tab-scan" class="active"><span class="nav-emoji">📸</span><span>Scan &amp; Stock</span></button>
+        <button data-tab="tab-diet"><span class="nav-emoji">👨‍👩‍👧</span><span>Household &amp; Diet</span></button>
+        <button data-tab="tab-menu"><span class="nav-emoji">📅</span><span>Weekly Menu</span></button>
+        <button data-tab="tab-shop"><span class="nav-emoji">🛒</span><span>Shopping &amp; Receipts</span></button>
+      </nav>
+      <p class="side-note">Photos: drag &amp; drop a picture onto a scan panel, or click to browse.</p>
+    </aside>
+
+    <main>
+      <!-- ===== Page 1: Scan & Stock ===== -->
+      <section id="tab-scan" class="tab-page active">
+        <h2>📸 Scan &amp; Stock</h2>
+        <div class="two-col two-col-scan">
+          <div class="card">
+            <h3>Snap or Upload Shelves</h3>
+            <div class="segmented" id="scan-location">
+              <button data-loc="Fridge" class="active">Fridge</button>
+              <button data-loc="Freezer">Freezer</button>
+              <button data-loc="Cupboard / Pantry">Pantry</button>
+            </div>
+            <div class="dropzone" id="scan-drop" tabindex="0" role="button"
+                 aria-label="Drop a shelf photo here or click to choose one">
+              <div class="dropzone-icon">📷</div>
+              <p><b>Drag &amp; drop</b> a shelf photo here<br>or click to choose a file</p>
+              <input id="scan-file" type="file" accept="image/*" hidden>
+            </div>
+            <p class="file-name" id="scan-file-name">No photo chosen yet</p>
+            <img id="scan-preview" class="photo-preview" alt="Shelf photo preview" hidden>
+            <button id="scan-btn" class="btn btn-accent" disabled>🔍 Scan Photo &amp; Log Items</button>
+            <p class="form-msg" id="scan-msg" role="status"></p>
+          </div>
+
+          <div class="card">
+            <h3>📦 Kitchen Inventory</h3>
+            <div class="inv-table-wrap">
+              <table class="inv-table">
+                <thead>
+                  <tr><th>Item</th><th class="col-qty">Qty</th><th class="col-unit">Unit</th>
+                      <th class="col-loc">Location</th><th class="col-cat">Category</th><th class="col-del"></th></tr>
+                </thead>
+                <tbody id="inventory-list"></tbody>
+              </table>
+            </div>
+            <p class="empty-note" id="inventory-empty">Nothing stocked yet — scan a shelf photo or add items by hand.</p>
+            <div class="btn-row">
+              <button id="inv-add-btn" class="btn">➕ Add Item</button>
+              <button id="inv-save-btn" class="btn btn-primary">💾 Save Inventory</button>
+              <button id="inv-clear-btn" class="btn btn-danger">🗑️ Clear All</button>
+            </div>
+            <p class="form-msg" id="inv-msg" role="status"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Page 2: Household & Diet ===== -->
+      <section id="tab-diet" class="tab-page">
+        <h2>👨‍👩‍👧 Household &amp; Diet</h2>
+        <div class="two-col">
+          <div class="card">
+            <h3>Household Size &amp; Holiday Scaling</h3>
+            <label class="field-label" for="base-headcount">Standard Household Headcount</label>
+            <input id="base-headcount" type="number" min="1" max="50" value="2">
+            <p class="hint">Scale individual days for guests or holidays (e.g., 20 for Thanksgiving).</p>
+            <div class="day-grid" id="day-headcounts"></div>
+          </div>
+
+          <div class="card">
+            <h3>🥗 Dietary Restrictions &amp; Allergies</h3>
+            <div id="diet-tags" class="tag-list"></div>
+            <label class="field-label" for="custom-notes">Specific Medical Needs, Allergies, or Favorite Cuisines</label>
+            <textarea id="custom-notes" rows="3" placeholder="e.g., Type 2 diabetes for one member, severe peanut allergy for another, prefer Tex-Mex or German cuisine."></textarea>
+            <label class="field-label" for="staples">Essential Staples to Always Check (Seasonings, Drinks, Veggies)</label>
+            <textarea id="staples" rows="2"></textarea>
+            <button id="diet-save-btn" class="btn btn-primary">💾 Save Household &amp; Diet Settings</button>
+            <p class="form-msg" id="diet-msg" role="status"></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🔑 Gemini API Key</h3>
+          <p class="hint">Your key is stored <b>only on this computer</b> (browser localStorage) and is sent
+            only to Google (through this app's backend) when you scan a photo or generate a menu. It is never
+            logged. Need a key? <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get
+            one free here</a> — no credit card.</p>
+          <label class="field-label" for="settings-key-input">Gemini API Key</label>
+          <div class="btn-row">
+            <input id="settings-key-input" type="password" placeholder="Paste a Gemini API key"
+                   autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button id="settings-key-btn" class="btn btn-primary">Save &amp; Connect</button>
+          </div>
+          <p class="form-msg" id="settings-key-msg" role="status"></p>
+        </div>
+      </section>
+
+      <!-- ===== Page 3: Weekly Menu ===== -->
+      <section id="tab-menu" class="tab-page">
+        <h2>📅 7-Day Menu &amp; Step-by-Step Recipes</h2>
+        <div class="menu-toolbar">
+          <button id="generate-btn" class="btn btn-primary btn-big">🚀 Generate 7-Day Menu &amp; Recipes from Inventory</button>
+          <p class="hint" id="plan-meta"></p>
+        </div>
+        <p class="form-msg" id="menu-msg" role="status"></p>
+        <div id="nutrition-notes" class="info-box" hidden></div>
+        <div id="menu-days" class="menu-grid"></div>
+        <p class="empty-note" id="menu-empty">No menu generated yet. Stock your shelves, then click Generate.</p>
+      </section>
+
+      <!-- ===== Page 4: Shopping & Receipts ===== -->
+      <section id="tab-shop" class="tab-page">
+        <h2>🛒 Shopping &amp; Receipts</h2>
+        <div class="two-col">
+          <div class="card">
+            <h3>Smart Shopping Checklist</h3>
+            <div id="shopping-list"></div>
+            <p class="empty-note" id="shopping-empty">Generate a weekly menu first to populate your shopping list.</p>
+            <button id="restock-btn" class="btn btn-primary" disabled>📥 Add Checked Items to Inventory</button>
+            <p class="form-msg" id="shop-msg" role="status"></p>
+            <hr class="sep">
+            <label class="check-line">
+              <input type="checkbox" id="export-include"> Include already-restocked items in export
+            </label>
+            <div class="btn-row">
+              <button id="export-btn" class="btn">⬇️ Download Shopping List (.md)</button>
+              <button id="print-btn" class="btn">🖨️ Print Shopping List</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>🧾 Scan Grocery Receipt</h3>
+            <p class="hint">Drop a photo of your paper receipt to auto-restock your kitchen and check off your list.</p>
+            <div class="dropzone" id="receipt-drop" tabindex="0" role="button"
+                 aria-label="Drop a receipt photo here or click to choose one">
+              <div class="dropzone-icon">🧾</div>
+              <p><b>Drag &amp; drop</b> a receipt photo here<br>or click to choose a file</p>
+              <input id="receipt-file" type="file" accept="image/*" hidden>
+            </div>
+            <p class="file-name" id="receipt-file-name">No photo chosen yet</p>
+            <img id="receipt-preview" class="photo-preview" alt="Receipt photo preview" hidden>
+            <button id="receipt-btn" class="btn btn-accent" disabled>🧾 Scan Receipt &amp; Auto-Restock</button>
+            <p class="form-msg" id="receipt-msg" role="status"></p>
+            <div id="receipt-logs"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ===== Print-only shopping view (populated by app.js) ===== -->
+<div id="print-area" aria-hidden="true"></div>
+
+<div id="toast" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
