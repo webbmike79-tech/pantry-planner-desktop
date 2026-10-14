@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from google import genai
 from google.genai import types
@@ -648,9 +649,8 @@ def analyze_storage_photo(api_key: str, image: Image.Image, location: str) -> Li
     return parsed.items
 
 
-def analyze_grocery_receipt(
-    api_key: str, image: Image.Image, shopping_list: list
-) -> ReceiptScanResult:
+def _receipt_prompt(shopping_list: list, source_description: str) -> str:
+    """Shared receipt-extraction prompt for images, PDFs, and pasted text."""
     indexed_shopping = [
         {
             "index": idx,
@@ -661,8 +661,8 @@ def analyze_grocery_receipt(
         for idx, item in enumerate(shopping_list)
     ]
 
-    prompt = f"""
-    You are scanning a grocery store receipt image.
+    return f"""
+    You are scanning {source_description}.
     1. Extract every food, drink, produce, meat, dairy, or seasoning item purchased.
     2. Decode abbreviated store receipt text into clean, standard grocery names.
     3. Ignore non-food items (paper towels, tax, etc.).
@@ -672,8 +672,39 @@ def analyze_grocery_receipt(
     ACTIVE SHOPPING LIST:
     {json.dumps(indexed_shopping, indent=2)}
     """
+
+
+def analyze_grocery_receipt(
+    api_key: str, image: Image.Image, shopping_list: list
+) -> ReceiptScanResult:
+    prompt = _receipt_prompt(shopping_list, "a grocery store receipt image")
     return _generate_structured(
         api_key, [image, prompt], ReceiptScanResult, 0.1, "read your grocery receipt"
+    )
+
+
+def analyze_receipt_pdf(
+    api_key: str, pdf_bytes: bytes, shopping_list: list
+) -> ReceiptScanResult:
+    prompt = _receipt_prompt(
+        shopping_list, "a grocery store receipt or online grocery order document (PDF)"
+    )
+    pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+    return _generate_structured(
+        api_key, [pdf_part, prompt], ReceiptScanResult, 0.1, "read your grocery receipt"
+    )
+
+
+def analyze_receipt_text(
+    api_key: str, text: str, shopping_list: list
+) -> ReceiptScanResult:
+    prompt = _receipt_prompt(
+        shopping_list,
+        "pasted text from a grocery store receipt or online grocery order confirmation",
+    )
+    contents = f"{prompt}\nRECEIPT / ORDER TEXT:\n{text}"
+    return _generate_structured(
+        api_key, contents, ReceiptScanResult, 0.1, "read your grocery receipt"
     )
 
 
@@ -812,6 +843,10 @@ class CookRequest(BaseModel):
 
 class RestockRequest(BaseModel):
     indices: List[int] = []
+
+
+class ReceiptPasteRequest(BaseModel):
+    text: str = ""
 
 
 # ---------- Helpers ----------
@@ -1007,26 +1042,101 @@ def api_export_shopping_list(include_purchased: bool = Query(False)):
     return PlainTextResponse(md, media_type="text/markdown; charset=utf-8")
 
 
-# ---------- Receipt scan ----------
+# ---------- Receipt scan / online order import ----------
 
 
-@app.post("/api/receipt/scan")
-async def api_scan_receipt(request: Request, file: UploadFile = File(...)):
-    api_key = require_gemini_key(request)
-    image = await load_image(file)
-    plan_id, _created_at, plan = get_latest_plan()
-    active_shop_list = plan.get("shopping_list", []) if plan else []
-    scan_res = gemini_call(analyze_grocery_receipt, api_key, image, active_shop_list)
-    logs = process_scanned_receipt_items(plan_id, scan_res.items)
+def _active_shopping_list() -> list:
+    _plan_id, _created_at, plan = get_latest_plan()
+    return plan.get("shopping_list", []) if plan else []
+
+
+def _receipt_response(store_name: str, items: List[ReceiptLineItem]):
+    """Run the single inventory-update pass and build the shared response."""
+    plan_id, _created_at, _plan = get_latest_plan()
+    logs = process_scanned_receipt_items(plan_id, items)
     payload = latest_plan_payload()
     return {
-        "store_name": scan_res.store_name,
-        "items": [i.model_dump() for i in scan_res.items],
+        "store_name": store_name,
+        "items": [i.model_dump() for i in items],
         "logs": logs,
         "plan_id": payload["plan_id"],
         "plan": payload["plan"],
         "inventory": get_inventory(),
     }
+
+
+@app.post("/api/receipt/scan")
+async def api_scan_receipt(request: Request):
+    """Scan one or more receipt photos/screenshots (online-order imports).
+
+    Accepts repeated `files` fields (and the legacy single `file` field).
+    Each image is analyzed separately; the items are then merged and deduped
+    by normalized (item_name, quantity, unit) so overlapping screenshots of
+    the same order don't double-count, before one inventory update pass.
+    """
+    api_key = require_gemini_key(request)
+    form = await request.form()
+    uploads: List[UploadFile] = []
+    for field_name, value in form.multi_items():
+        # NOTE: form parsing yields starlette UploadFiles; FastAPI's UploadFile
+        # is a subclass of it, so test against the starlette base class.
+        if (
+            field_name in ("files", "file")
+            and isinstance(value, StarletteUploadFile)
+            and value.filename
+        ):
+            uploads.append(value)
+    if not uploads:
+        raise HTTPException(status_code=400, detail="No receipt photo was uploaded.")
+
+    active_shop_list = _active_shopping_list()
+    merged: List[ReceiptLineItem] = []
+    seen = set()
+    store_name = "Grocery Store"
+    for upload in uploads:
+        image = await load_image(upload)
+        scan_res = gemini_call(analyze_grocery_receipt, api_key, image, active_shop_list)
+        if store_name == "Grocery Store" and scan_res.store_name:
+            store_name = scan_res.store_name
+        for item in scan_res.items:
+            dedupe_key = (
+                item.item_name.strip().lower(),
+                round(float(item.quantity), 2),
+                item.unit.strip().lower(),
+            )
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            merged.append(item)
+    return _receipt_response(store_name, merged)
+
+
+@app.post("/api/receipt/scan-pdf")
+async def api_scan_receipt_pdf(request: Request, file: UploadFile = File(...)):
+    """Import an online grocery order from a PDF (order confirmation/receipt)."""
+    api_key = require_gemini_key(request)
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="That PDF file was empty.")
+    scan_res = gemini_call(
+        analyze_receipt_pdf, api_key, pdf_bytes, _active_shopping_list()
+    )
+    return _receipt_response(scan_res.store_name, scan_res.items)
+
+
+@app.post("/api/receipt/paste")
+def api_paste_receipt(body: ReceiptPasteRequest, request: Request):
+    """Import an online grocery order from pasted confirmation text/email."""
+    api_key = require_gemini_key(request)
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=400, detail="Paste your order or receipt text first."
+        )
+    scan_res = gemini_call(
+        analyze_receipt_text, api_key, text, _active_shopping_list()
+    )
+    return _receipt_response(scan_res.store_name, scan_res.items)
 
 
 # ---------- Gemini key validation (per-user bring-your-own-key) ----------
