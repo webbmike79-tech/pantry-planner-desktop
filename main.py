@@ -614,7 +614,7 @@ def _generate_structured(api_key: str, contents, schema, temperature: float, wha
     try:
         client = get_client(api_key)
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1158,7 +1158,7 @@ def api_validate_key(request: Request):
     try:
         client = get_client(api_key)
         client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents="ping",
             config=types.GenerateContentConfig(max_output_tokens=16, temperature=0),
         )
