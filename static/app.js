@@ -104,7 +104,7 @@ async function saveKeyWithValidation(inputEl, msgEl, onSuccess) {
 }
 
 function showSetup() { $("#setup-screen").hidden = false; }
-function hideSetup() { $("#setup-screen").hidden = true; }
+function hideSetup() { $("#setup-screen").hidden = true; maybeShowPhoneSetup(); }
 
 function requireKey() {
   if (hasKey()) return true;
@@ -406,6 +406,35 @@ function updateRestockBtn() {
   const btn = $("#restock-btn");
   btn.disabled = n === 0;
   btn.textContent = `📥 Add Checked Items (${n}) to Kitchen Inventory`;
+  updateClearPurchasedBtn();
+}
+
+function purchasedCount() {
+  const items = state.plan ? (state.plan.shopping_list || []) : [];
+  return items.filter((i) => i.purchased).length;
+}
+
+function updateClearPurchasedBtn() {
+  const n = purchasedCount();
+  const btn = $("#clear-purchased-btn");
+  btn.disabled = n === 0;
+  btn.textContent = `🧹 Clear purchased items (${n})`;
+}
+
+async function clearPurchased() {
+  const msg = $("#shop-msg");
+  const n = purchasedCount();
+  if (n === 0) return;
+  if (!confirm(`Remove ${n} purchased item${n === 1 ? "" : "s"} from the list?`)) return;
+  try {
+    const data = await api("/api/shopping/clear-purchased", { method: "POST" });
+    state.plan = data.plan;
+    renderShopping();
+    setMsg(msg, `✅ Cleared ${data.cleared} purchased item${data.cleared === 1 ? "" : "s"} from the list.`, "ok");
+    toast("Purchased items cleared");
+  } catch (e) {
+    setMsg(msg, e.message, "err");
+  }
 }
 
 async function restock() {
@@ -638,6 +667,116 @@ async function pasteReceiptText() {
   }
 }
 
+/* ---------------- Connect Phone (desktop only; uses the loopback-only /api/desktop/* API) ---------------- */
+
+async function loadPhoneInfo() {
+  try {
+    state.phone = await api("/api/desktop/phone-access");
+  } catch (e) {
+    // Not the desktop itself (e.g. this page was opened from a phone): hide the page entirely.
+    state.phone = null;
+    $("#nav-phone").hidden = true;
+    return;
+  }
+  $("#nav-phone").hidden = false;
+  renderPhonePanel();
+  maybeShowPhoneSetup();
+}
+
+function maybeShowPhoneSetup() {
+  // Ask exactly once (phone_access is null until answered); never stack on top of the key setup screen.
+  if (state.phone && state.phone.phone_access === null && $("#setup-screen").hidden) {
+    $("#phone-setup-screen").hidden = false;
+  }
+}
+
+function renderPhonePanel() {
+  const p = state.phone;
+  if (!p) return;
+  const on = p.phone_access === true;
+  $("#phone-toggle").checked = on;
+  let status = on
+    ? (p.listening_on_network === false
+        ? "Phone access is on, but the server hasn't switched over yet."
+        : "Phone access is ON — this PC is listening on your home network.")
+    : "Phone access is OFF — only this PC can use the app.";
+  if (p.restart_required && !p.can_restart) status += " Close and reopen the app to apply the change.";
+  $("#phone-status").textContent = status;
+
+  $("#phone-details").hidden = !on;
+  const wrap = $("#phone-urls");
+  wrap.innerHTML = "";
+  if (on) {
+    if (!p.urls.length) {
+      wrap.textContent = "No home-network address found. Is this PC connected to Wi-Fi?";
+    }
+    p.urls.forEach((u) => {
+      const box = document.createElement("div");
+      box.className = "phone-url";
+      box.innerHTML = `
+        <img class="qr-img" alt="QR code for ${esc(u)}" src="/api/desktop/qr.svg?url=${encodeURIComponent(u)}">
+        <div><code class="url-text">${esc(u)}</code>
+        <p class="hint">Type this into the phone app, or scan the code.</p></div>`;
+      wrap.appendChild(box);
+    });
+  }
+  $("#phone-code").value = p.access_code || "";
+}
+
+async function waitForRestart(oldBootId, maxMs = 25000) {
+  const t0 = Date.now();
+  await new Promise((r) => setTimeout(r, 700));
+  while (Date.now() - t0 < maxMs) {
+    try {
+      const info = await api("/api/desktop/phone-access");
+      // Only accept the NEW server: a different boot id (the old one may still answer while shutting down).
+      if (!oldBootId || info.boot_id !== oldBootId) return info;
+    } catch (e) { /* server is restarting */ }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error("The server didn't come back. Close and reopen the app.");
+}
+
+async function setPhoneAccess(enabled, msgEl) {
+  setMsg(msgEl, enabled ? "Turning on phone access…" : "Turning off phone access…");
+  const oldBoot = state.phone ? state.phone.boot_id : null;
+  try {
+    let info = await api("/api/desktop/phone-access", { method: "PUT", body: { enabled } });
+    if (info.restarting) {
+      setMsg(msgEl, "Restarting the server…");
+      info = await waitForRestart(oldBoot);
+    }
+    state.phone = info;
+    renderPhonePanel();
+    setMsg(msgEl, enabled ? "✅ Phone access is on." : "✅ Phone access is off.", "ok");
+    return true;
+  } catch (e) {
+    setMsg(msgEl, e.message, "err");
+    try { state.phone = await api("/api/desktop/phone-access"); renderPhonePanel(); } catch (e2) { /* ignore */ }
+    return false;
+  }
+}
+
+async function savePhoneCode(code) {
+  const msg = $("#phone-code-msg");
+  const value = code === null ? null : String(code).trim();
+  if (value === "") { setMsg(msg, "Type or generate a code first (or use Remove code).", "err"); return; }
+  try {
+    state.phone = await api("/api/desktop/phone-access", { method: "PUT", body: { access_code: value } });
+    renderPhonePanel();
+    setMsg(msg, value === null ? "✅ Access code removed." : "✅ Access code saved. Enter it in the phone app.", "ok");
+  } catch (e) {
+    setMsg(msg, e.message, "err");
+  }
+}
+
+function generateAccessCode() {
+  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no look-alikes (0/O, 1/I)
+  const rnd = new Uint32Array(6);
+  crypto.getRandomValues(rnd);
+  return Array.from(rnd, (n) => chars[n % chars.length]).join("");
+}
+
 /* ---------------- Sidebar navigation ---------------- */
 
 function wireNav() {
@@ -725,6 +864,7 @@ function init() {
 
   /* Shopping page */
   $("#restock-btn").addEventListener("click", restock);
+  $("#clear-purchased-btn").addEventListener("click", clearPurchased);
   $("#export-btn").addEventListener("click", exportList);
   $("#print-btn").addEventListener("click", printShoppingList);
   wirePhotoInput($("#receipt-file"), $("#receipt-file-name"), $("#receipt-preview"), $("#receipt-btn"));
@@ -741,7 +881,20 @@ function init() {
   $("#receipt-pdf-btn").addEventListener("click", scanReceiptPdf);
   $("#receipt-paste-btn").addEventListener("click", pasteReceiptText);
 
+  /* Connect Phone page + first-run question (desktop only; hidden if the API says we're not the desktop) */
+  $("#phone-toggle").addEventListener("change", (e) => setPhoneAccess(e.target.checked, $("#phone-msg")));
+  $("#phone-setup-yes").addEventListener("click", async () => {
+    if (await setPhoneAccess(true, $("#phone-setup-msg"))) $("#phone-setup-screen").hidden = true;
+  });
+  $("#phone-setup-no").addEventListener("click", async () => {
+    if (await setPhoneAccess(false, $("#phone-setup-msg"))) $("#phone-setup-screen").hidden = true;
+  });
+  $("#phone-code-gen").addEventListener("click", () => { $("#phone-code").value = generateAccessCode(); });
+  $("#phone-code-save").addEventListener("click", () => savePhoneCode($("#phone-code").value));
+  $("#phone-code-clear").addEventListener("click", () => savePhoneCode(null));
+
   refreshAll().catch((e) => toast(`Could not load data: ${e.message}`));
+  loadPhoneInfo();
 }
 
 document.addEventListener("DOMContentLoaded", init);

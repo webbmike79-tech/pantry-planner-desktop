@@ -28,6 +28,20 @@
   </div>
 </div>
 
+<!-- ===== First-run phone access question (asked once, answer is remembered) ===== -->
+<div id="phone-setup-screen" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">📱</div>
+    <h2>Use Pantry Planner on your phone?</h2>
+    <p>Turn on <b>phone access</b> so the Android app can reach this PC over your home Wi-Fi and share
+       the same pantry. This PC will then listen on your home network. It's <b>off by default</b> and you can
+       change it any time under <b>Connect Phone</b>. Windows may ask you to allow Python through the firewall.</p>
+    <button id="phone-setup-yes" class="btn btn-primary btn-big">📱 Yes, enable phone access</button>
+    <button id="phone-setup-no" class="btn btn-ghost">No, keep it on this PC only</button>
+    <p id="phone-setup-msg" class="form-msg" role="status"></p>
+  </div>
+</div>
+
 <div class="app-shell">
   <!-- ===== Top bar: title + status ===== -->
   <header class="topbar">
@@ -51,6 +65,7 @@
         <button data-tab="tab-diet"><span class="nav-emoji">👨‍👩‍👧</span><span>Household &amp; Diet</span></button>
         <button data-tab="tab-menu"><span class="nav-emoji">📅</span><span>Weekly Menu</span></button>
         <button data-tab="tab-shop"><span class="nav-emoji">🛒</span><span>Shopping &amp; Receipts</span></button>
+        <button data-tab="tab-phone" id="nav-phone" hidden><span class="nav-emoji">📱</span><span>Connect Phone</span></button>
       </nav>
       <p class="side-note">Photos: drag &amp; drop a picture onto a scan panel, or click to browse.</p>
     </aside>
@@ -163,6 +178,7 @@
             <div id="shopping-list"></div>
             <p class="empty-note" id="shopping-empty">Generate a weekly menu first to populate your shopping list.</p>
             <button id="restock-btn" class="btn btn-primary" disabled>📥 Add Checked Items to Inventory</button>
+            <button id="clear-purchased-btn" class="btn btn-danger" disabled>🧹 Clear purchased items</button>
             <p class="form-msg" id="shop-msg" role="status"></p>
             <hr class="sep">
             <label class="check-line">
@@ -200,6 +216,46 @@
             <button id="receipt-paste-btn" class="btn btn-accent">📋 Import Pasted Order</button>
             <p class="form-msg" id="receipt-msg" role="status"></p>
             <div id="receipt-logs"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Page 5: Connect Phone ===== -->
+      <section id="tab-phone" class="tab-page">
+        <h2>📱 Connect Your Phone</h2>
+        <div class="two-col">
+          <div class="card">
+            <h3>Phone access</h3>
+            <label class="check-line">
+              <input type="checkbox" id="phone-toggle">
+              <span>Let my phone connect to this PC over my home Wi-Fi</span>
+            </label>
+            <p class="hint" id="phone-status"></p>
+            <p class="form-msg" id="phone-msg" role="status"></p>
+            <div id="phone-details" hidden>
+              <h4>Enter this address in the phone app</h4>
+              <div id="phone-urls"></div>
+              <p class="hint">Your phone and this PC must be on the <b>same Wi-Fi</b>. Windows may ask you to
+                allow Python through the firewall the first time. Tip: give this PC a fixed IP in your router
+                settings so the address doesn't change.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>🔒 Access code (optional)</h3>
+            <p class="hint">If set, the phone app must enter this code before it can read or change anything.
+              This PC never needs it. It's a light guard for your home network, not strong security.</p>
+            <label class="field-label" for="phone-code">Access code (4–64 letters/numbers/symbols, no spaces)</label>
+            <div class="btn-row">
+              <input id="phone-code" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                     placeholder="No code set">
+              <button id="phone-code-gen" class="btn">🎲 Generate</button>
+            </div>
+            <div class="btn-row">
+              <button id="phone-code-save" class="btn btn-primary">💾 Save code</button>
+              <button id="phone-code-clear" class="btn btn-danger">Remove code</button>
+            </div>
+            <p class="form-msg" id="phone-code-msg" role="status"></p>
           </div>
         </div>
       </section>

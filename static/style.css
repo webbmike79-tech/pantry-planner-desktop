@@ -324,3 +324,10 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
   #print-area .print-items { list-style: none; padding-left: 4px; }
   #print-area .print-items li.bought { text-decoration: line-through; color: #555; }
 }
+
+/* ---------- Connect Phone page ---------- */
+.phone-url { display: flex; align-items: center; gap: 16px; margin: 12px 0; flex-wrap: wrap; }
+.qr-img { width: 168px; height: 168px; background: #fff; padding: 8px; border-radius: 10px; flex-shrink: 0; }
+.url-text { font-size: 1.15rem; font-weight: 700; color: var(--accent-soft); word-break: break-all; }
+#phone-code { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.06em; }
+#nav-phone[hidden], #phone-details[hidden] { display: none; }

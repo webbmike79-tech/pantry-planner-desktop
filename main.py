@@ -9,10 +9,12 @@ app.py, including the 2026-10-14 fixes: inventory IDs are preserved on bulk
 save, and all Gemini calls go through _generate_structured, which raises
 friendly RuntimeErrors instead of raw tracebacks).
 
-This project is fully standalone: it uses its OWN SQLite database
-(pantry_planner.db in THIS project's root), separate from the mobile
-project's database. Set the PANTRY_DB_FILE environment variable to override
-the DB location (useful for testing).
+This desktop app is the HUB of the connected system: its SQLite database
+(pantry_planner.db in THIS project's root) is the one shared copy. The phone app
+connects to this server over the home Wi-Fi - but only while "phone access" is
+turned on (see phone_access.py; off by default, optional access code). Set the
+PANTRY_DB_FILE environment variable to override the DB location (useful for
+testing) and PANTRY_CONFIG_FILE to override the phone-access config location.
 
 Run it (from this project's root):
     python run_desktop.py            # native window (pywebview) or browser
@@ -33,12 +35,15 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from google import genai
 from google.genai import types
+
+import phone_access
 
 # ==========================================
 # PATHS
@@ -467,6 +472,35 @@ def restock_checked_shopping_items(plan_id: int, item_indices: List[int]) -> Lis
     return restocked_log
 
 
+def clear_purchased_shopping_items(plan_id: int) -> int:
+    """Remove all items already marked purchased from the plan's shopping list.
+
+    Returns the number of items removed. Inventory is not touched.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT plan_json FROM saved_plans WHERE id = ?", (plan_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return 0
+
+    plan_data = json.loads(row[0])
+    shopping_list = plan_data.get("shopping_list", [])
+    remaining = [i for i in shopping_list if not i.get("purchased", False)]
+    removed = len(shopping_list) - len(remaining)
+
+    if removed:
+        plan_data["shopping_list"] = remaining
+        c.execute(
+            "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+            (json.dumps(plan_data), plan_id),
+        )
+        conn.commit()
+    conn.close()
+    return removed
+
+
 def process_scanned_receipt_items(
     plan_id: Optional[int], receipt_items: List[ReceiptLineItem]
 ) -> List[str]:
@@ -806,6 +840,21 @@ app = FastAPI(title="Pantry-to-Menu Planner API", version="1.0.0")
 
 init_db()
 
+# Middleware order matters: the LAST one added is the OUTERMOST. CORS must wrap the
+# phone-access gate so that its 401/403 replies still carry CORS headers - otherwise
+# a phone app would see a bare network error instead of a readable message.
+# Same-origin use (the desktop window, the browser UI) is unaffected by CORS.
+app.add_middleware(phone_access.PhoneAccessMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost", "https://localhost", "capacitor://localhost"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Gemini-Key", "X-Pantry-Token"],
+)
+# Loopback-only /api/desktop/* routes. Must be registered before the catch-all
+# static mount at the bottom of this file.
+app.include_router(phone_access.router)
+
 
 # ---------- Request body models ----------
 
@@ -896,7 +945,11 @@ def latest_plan_payload():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "app": "pantry-planner",
+        "auth_required": bool(phone_access.load_config().get("access_code")),
+    }
 
 
 # ---------- Inventory ----------
@@ -1030,6 +1083,17 @@ def api_restock(body: RestockRequest):
     payload = latest_plan_payload()
     payload["restocked"] = restocked
     payload["inventory"] = get_inventory()
+    return payload
+
+
+@app.post("/api/shopping/clear-purchased")
+def api_clear_purchased():
+    plan_id, _created_at, plan = get_latest_plan()
+    if plan_id is None or plan is None:
+        raise HTTPException(status_code=404, detail="No plan generated yet.")
+    cleared = clear_purchased_shopping_items(plan_id)
+    payload = latest_plan_payload()
+    payload["cleared"] = cleared
     return payload
 
 

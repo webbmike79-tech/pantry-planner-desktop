@@ -11,9 +11,10 @@ beside the inventory table, a 7-day week grid, and the shopping list and
 receipt scanner side by side.
 
 > **Sibling project:** a mobile version (API + installable phone web app)
-> lives in `~/workspace/projects/pantry-planner/api/`. The two projects are
-> independent — each keeps its **own** `pantry_planner.db` in its own
-> project root, so desktop and mobile data do not mix.
+> lives in `~/workspace/projects/pantry-planner/api/`. When you turn on **phone
+> access** (see below) the phone app uses **this** app's database, so desktop and
+> phone share one pantry. The mobile project's own backend still works on its own
+> with its own `pantry_planner.db`, but the two don't mix unless the phone points here.
 
 ## Install
 
@@ -92,6 +93,7 @@ Identical to the mobile backend:
 | `GET /api/plan/latest` | Latest saved plan |
 | `POST /api/plan/cook` | `{day_index}` → deduct that day's ingredients |
 | `POST /api/shopping/restock` | `{indices}` → add checked items to inventory |
+| `POST /api/shopping/clear-purchased` | Remove all purchased items from the latest plan's shopping list |
 | `POST /api/receipt/scan` | Multipart receipt photo → auto-restock + check off list |
 | `GET /api/shopping-list/export?include_purchased=bool` | Shopping list as Markdown |
 | `POST /api/validate-key` | Validate the `X-Gemini-Key` header with one tiny Gemini call |
@@ -99,6 +101,44 @@ Identical to the mobile backend:
 
 Gemini-backed endpoints accept the key via the `X-Gemini-Key` header
 (the web UI sends it automatically) or fall back to `GEMINI_API_KEY`.
+
+## Phone access (shared database with the phone app)
+
+This desktop app is the **hub**: its `pantry_planner.db` is the one shared copy.
+The phone app reads and writes it through this server over your home Wi-Fi — no
+separate sync system. Enter an item once, it shows up on both.
+
+- **Off by default.** On first run the app asks once whether to enable phone
+  access and remembers your answer (`pantry_desktop_config.json`, git-ignored).
+  Change it any time under **Connect Phone** in the sidebar. Turning it on makes
+  the server listen on your home network (`0.0.0.0`) instead of only this PC
+  (`127.0.0.1`); the app restarts its server for you when you flip the switch.
+- **Connect Phone page** shows the address to type into the phone app (e.g.
+  `http://192.168.4.159:8001`) and a QR code for it.
+- **Access code (optional, off by default).** If set, the phone must send it
+  (`X-Pantry-Token`) for every `/api/*` call; this PC never needs it. It is a
+  light guard for a home network, **not strong security** — traffic is plain HTTP.
+- With phone access **off**, any request from another device is refused with a
+  clear message, even if the server were started by hand on the network.
+- **Windows Firewall:** the first time the server listens on the network, Windows
+  may ask to allow Python. Allow it for your home network.
+- **Tip:** give this PC a fixed IP (DHCP reservation) in your router so the
+  address doesn't change. A router's guest-network / "client isolation" mode can
+  block phone-to-PC traffic entirely.
+- The phone's Gemini key stays on the phone and is sent per request, exactly as
+  before. `GEMINI_API_KEY` set on this PC acts as a fallback for any client that
+  sends no key.
+
+`/api/desktop/*` (phone-access settings, QR code) only answers this PC itself.
+
+### Tests
+
+```bash
+py -m unittest discover -s tests -v
+```
+
+Uses temporary database/config files (`PANTRY_DB_FILE`, `PANTRY_CONFIG_FILE`);
+your real data is not touched.
 
 ## Notes
 
