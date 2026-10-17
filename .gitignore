@@ -2,3 +2,17 @@
 __pycache__/
 *.pyc
 pantry_planner.db
+
+# Secrets and local data (added 2026-10-16)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+service-account*.json
+secrets.json
+*.db
+*.sqlite
+*.sqlite3
+.DS_Store
+Thumbs.db
