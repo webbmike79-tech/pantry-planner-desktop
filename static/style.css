@@ -108,7 +108,7 @@ main { flex: 1; min-width: 0; padding: 22px 28px 40px; }
   min-width: 0;
 }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-.two-col-scan { grid-template-columns: minmax(320px, 5fr) 7fr; }
+.two-col-scan { grid-template-columns: minmax(280px, 1fr) 2fr; }
 .two-col .card { margin-bottom: 0; }
 
 .field-label { display: block; font-weight: 600; margin: 14px 0 6px; }
@@ -193,20 +193,71 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
 .dropzone p { margin: 8px 0 0; line-height: 1.5; font-size: 0.94rem; }
 
 /* ---------- Inventory table ---------- */
-.inv-table-wrap { overflow-x: auto; }
-.inv-table { width: 100%; border-collapse: collapse; }
+.inv-table-wrap { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+.inv-table { width: 100%; border-collapse: collapse; min-width: 600px; }
 .inv-table th {
   text-align: left; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--muted); padding: 6px 6px; border-bottom: 1px solid var(--border);
+  color: var(--muted); padding: 8px 6px; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 .inv-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); vertical-align: middle; }
 .inv-table tr:last-child td { border-bottom: none; }
-.inv-table .col-qty { width: 84px; }
-.inv-table .col-unit { width: 92px; }
-.inv-table .col-loc { width: 148px; }
-.inv-table .col-cat { width: 158px; }
-.inv-table .col-del { width: 40px; }
-.inv-table input, .inv-table select { padding: 7px 8px; font-size: 0.93rem; }
+
+/* Item: wide flexible column (names fully visible, input fills cell, sensible min-width ~200px) */
+.inv-table .col-item {
+  width: auto;
+  min-width: 200px;
+}
+.inv-table .inv-name {
+  width: 100%;
+  min-width: 190px;
+  box-sizing: border-box;
+}
+
+/* Qty & Unit: narrow */
+.inv-table .col-qty {
+  width: 68px;
+  min-width: 64px;
+}
+.inv-table .col-qty input {
+  width: 100%;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+.inv-table .col-unit {
+  width: 80px;
+  min-width: 76px;
+}
+.inv-table .col-unit input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Location & Category: sized to their select content */
+.inv-table .col-loc {
+  width: 136px;
+  min-width: 130px;
+}
+.inv-table .col-loc select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inv-table .col-cat {
+  width: 148px;
+  min-width: 140px;
+}
+.inv-table .col-cat select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inv-table .col-del {
+  width: 36px;
+  text-align: center;
+}
+.inv-table input, .inv-table select { padding: 7px 8px; font-size: 0.93rem; box-sizing: border-box; }
 .inv-del {
   background: transparent; border: none; color: #ff9c9c;
   font-size: 1.1rem; cursor: pointer; padding: 4px 6px;

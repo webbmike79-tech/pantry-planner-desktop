@@ -162,12 +162,12 @@ function inventoryRow(item) {
   const catOpts = CATEGORIES.map(
     (c) => `<option ${c === item.category ? "selected" : ""}>${esc(c)}</option>`).join("");
   row.innerHTML = `
-    <td><input class="inv-name" type="text" placeholder="Item name" value="${esc(item.item_name || "")}"></td>
-    <td><input class="inv-qty" type="number" min="0" step="0.5" value="${item.quantity ?? 0}"></td>
-    <td><input class="inv-unit" type="text" placeholder="unit" value="${esc(item.unit || "count")}"></td>
-    <td><select class="inv-loc">${locOpts}</select></td>
-    <td><select class="inv-cat">${catOpts}</select></td>
-    <td><button class="inv-del" title="Remove item" aria-label="Remove item">✕</button></td>`;
+    <td class="col-item"><input class="inv-name" type="text" placeholder="Item name" value="${esc(item.item_name || "")}"></td>
+    <td class="col-qty"><input class="inv-qty" type="number" min="0" step="0.5" value="${item.quantity ?? 0}"></td>
+    <td class="col-unit"><input class="inv-unit" type="text" placeholder="unit" value="${esc(item.unit || "count")}"></td>
+    <td class="col-loc"><select class="inv-loc">${locOpts}</select></td>
+    <td class="col-cat"><select class="inv-cat">${catOpts}</select></td>
+    <td class="col-del"><button class="inv-del" title="Remove item" aria-label="Remove item">✕</button></td>`;
   row.querySelector(".inv-del").addEventListener("click", () => row.remove());
   return row;
 }
