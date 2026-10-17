@@ -43,6 +43,13 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from google import genai
 from google.genai import types
 
+from ai_fallback import (
+    ProviderKeys,
+    extract_provider_keys,
+    generate_structured_with_fallback,
+    validate_provider_key,
+)
+
 import phone_access
 
 # ==========================================
@@ -643,44 +650,28 @@ def get_client(api_key: str):
     return genai.Client(api_key=api_key)
 
 
-def _generate_structured(api_key: str, contents, schema, temperature: float, what: str):
-    """Shared Gemini structured-output call with friendly error wrapping."""
-    try:
-        client = get_client(api_key)
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=schema,
-                temperature=temperature,
-            ),
-        )
-    except Exception as e:
-        raise RuntimeError(f"Gemini could not {what}. API error: {e}") from e
-    if not getattr(response, "text", None):
-        raise RuntimeError(
-            f"Gemini returned an empty response while trying to {what}. Please try again."
-        )
-    try:
-        return schema.model_validate_json(response.text)
-    except Exception as e:
-        raise RuntimeError(
-            f"Gemini returned data in an unexpected format while trying to {what}. Please try again. ({e})"
-        ) from e
+def _generate_structured(keys_or_key, contents, schema, temperature: float, what: str):
+    """Shared structured-output call routed through the AI provider fallback chain."""
+    if isinstance(keys_or_key, ProviderKeys):
+        keys = keys_or_key
+    elif isinstance(keys_or_key, str):
+        keys = ProviderKeys(gemini_key=keys_or_key)
+    else:
+        keys = ProviderKeys()
+    return generate_structured_with_fallback(keys, contents, schema, temperature, what)
 
 
-def analyze_storage_photo(api_key: str, image: Image.Image, location: str) -> List[DetectedItem]:
+def analyze_storage_photo(keys, image: Image.Image, location: str) -> Tuple[List[DetectedItem], str]:
     prompt = f"""
     You are scanning a user's {location}.
     Identify all visible food items, ingredients, veggies, drinks, and seasonings.
     Estimate the remaining quantity and unit for each item as accurately as possible
     (e.g., 0.5 gallon, 2 cans, 12 oz, 1 bottle).
     """
-    parsed = _generate_structured(
-        api_key, [image, prompt], VisionInventoryResult, 0.2, f"scan your {location} photo"
+    parsed, served_by = _generate_structured(
+        keys, [image, prompt], VisionInventoryResult, 0.2, f"scan your {location} photo"
     )
-    return parsed.items
+    return parsed.items, served_by
 
 
 def _receipt_prompt(shopping_list: list, source_description: str) -> str:
@@ -709,46 +700,46 @@ def _receipt_prompt(shopping_list: list, source_description: str) -> str:
 
 
 def analyze_grocery_receipt(
-    api_key: str, image: Image.Image, shopping_list: list
-) -> ReceiptScanResult:
+    keys, image: Image.Image, shopping_list: list
+) -> Tuple[ReceiptScanResult, str]:
     prompt = _receipt_prompt(shopping_list, "a grocery store receipt image")
     return _generate_structured(
-        api_key, [image, prompt], ReceiptScanResult, 0.1, "read your grocery receipt"
+        keys, [image, prompt], ReceiptScanResult, 0.1, "read your grocery receipt"
     )
 
 
 def analyze_receipt_pdf(
-    api_key: str, pdf_bytes: bytes, shopping_list: list
-) -> ReceiptScanResult:
+    keys, pdf_bytes: bytes, shopping_list: list
+) -> Tuple[ReceiptScanResult, str]:
     prompt = _receipt_prompt(
         shopping_list, "a grocery store receipt or online grocery order document (PDF)"
     )
     pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
     return _generate_structured(
-        api_key, [pdf_part, prompt], ReceiptScanResult, 0.1, "read your grocery receipt"
+        keys, [pdf_part, prompt], ReceiptScanResult, 0.1, "read your grocery receipt"
     )
 
 
 def analyze_receipt_text(
-    api_key: str, text: str, shopping_list: list
-) -> ReceiptScanResult:
+    keys, text: str, shopping_list: list
+) -> Tuple[ReceiptScanResult, str]:
     prompt = _receipt_prompt(
         shopping_list,
         "pasted text from a grocery store receipt or online grocery order confirmation",
     )
     contents = f"{prompt}\nRECEIPT / ORDER TEXT:\n{text}"
     return _generate_structured(
-        api_key, contents, ReceiptScanResult, 0.1, "read your grocery receipt"
+        keys, contents, ReceiptScanResult, 0.1, "read your grocery receipt"
     )
 
 
 def generate_weekly_menu_and_list(
-    api_key: str,
+    keys,
     inventory_df: pd.DataFrame,
     settings: dict,
     daily_headcounts: dict,
     active_theme: str,
-) -> WeeklyPlanOutput:
+) -> Tuple[WeeklyPlanOutput, str]:
     if inventory_df.empty:
         inv_records = []
     else:
@@ -782,7 +773,7 @@ def generate_weekly_menu_and_list(
     """
 
     return _generate_structured(
-        api_key, prompt, WeeklyPlanOutput, 0.3, "build your weekly menu"
+        keys, prompt, WeeklyPlanOutput, 0.3, "build your weekly menu"
     )
 
 
@@ -849,7 +840,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost", "https://localhost", "capacitor://localhost"],
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Gemini-Key", "X-Pantry-Token"],
+    allow_headers=[
+        "Content-Type",
+        "X-Gemini-Key",
+        "X-Groq-Key",
+        "X-OpenRouter-Key",
+        "X-Pantry-Token",
+    ],
 )
 # Loopback-only /api/desktop/* routes. Must be registered before the catch-all
 # static mount at the bottom of this file.
@@ -901,26 +898,31 @@ class ReceiptPasteRequest(BaseModel):
 # ---------- Helpers ----------
 
 
-def require_gemini_key(request: Request) -> str:
-    """Gemini key: X-Gemini-Key header first, else GEMINI_API_KEY env var."""
-    key = request.headers.get("x-gemini-key") or os.environ.get("GEMINI_API_KEY", "")
-    if not key:
+def require_ai_keys(request: Request) -> ProviderKeys:
+    """Extract AI keys: Gemini, Groq, OpenRouter from headers or env vars."""
+    keys = extract_provider_keys(request.headers)
+    if not (keys.gemini_key or keys.groq_key or keys.openrouter_key):
         raise HTTPException(
             status_code=400,
             detail=(
-                "No Gemini API key available. Enter your key in the app "
+                "No AI API key available. Enter your Gemini API key (or Groq/OpenRouter key) in the app "
                 "(Diet tab) or set the GEMINI_API_KEY environment variable."
             ),
         )
-    return key
+    return keys
 
 
-def gemini_call(fn, *args):
-    """Run a Gemini function, converting friendly RuntimeErrors to HTTP 502."""
+def ai_call(fn, *args):
+    """Run an AI function, converting friendly RuntimeErrors to HTTP 502."""
     try:
         return fn(*args)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+# Legacy aliases for backward compatibility if tests call them
+require_gemini_key = require_ai_keys
+gemini_call = ai_call
 
 
 async def load_image(upload: UploadFile) -> Image.Image:
@@ -1020,14 +1022,15 @@ async def api_scan_photo(
 ):
     if location not in LOCATIONS:
         raise HTTPException(status_code=400, detail=f"Unknown location: {location}")
-    api_key = require_gemini_key(request)
+    keys = require_ai_keys(request)
     image = await load_image(file)
-    detected = gemini_call(analyze_storage_photo, api_key, image, location)
+    detected, served_by = ai_call(analyze_storage_photo, keys, image, location)
     add_inventory_items(location, detected)
     return {
         "added": len(detected),
         "items": [d.model_dump() for d in detected],
         "inventory": get_inventory(),
+        "served_by": served_by,
     }
 
 
@@ -1036,19 +1039,21 @@ async def api_scan_photo(
 
 @app.post("/api/plan/generate")
 def api_generate_plan(body: GeneratePlanRequest, request: Request):
-    api_key = require_gemini_key(request)
+    keys = require_ai_keys(request)
     settings = get_settings()
     theme = body.theme_name or get_auto_theme_name()
-    plan_output = gemini_call(
+    plan_output, served_by = ai_call(
         generate_weekly_menu_and_list,
-        api_key,
+        keys,
         get_inventory_df(),
         settings,
         body.daily_headcounts,
         theme,
     )
     save_plan(plan_output.model_dump())
-    return latest_plan_payload()
+    payload = latest_plan_payload()
+    payload["served_by"] = served_by
+    return payload
 
 
 @app.get("/api/plan/latest")
@@ -1114,7 +1119,7 @@ def _active_shopping_list() -> list:
     return plan.get("shopping_list", []) if plan else []
 
 
-def _receipt_response(store_name: str, items: List[ReceiptLineItem]):
+def _receipt_response(store_name: str, items: List[ReceiptLineItem], served_by: str = ""):
     """Run the single inventory-update pass and build the shared response."""
     plan_id, _created_at, _plan = get_latest_plan()
     logs = process_scanned_receipt_items(plan_id, items)
@@ -1126,6 +1131,7 @@ def _receipt_response(store_name: str, items: List[ReceiptLineItem]):
         "plan_id": payload["plan_id"],
         "plan": payload["plan"],
         "inventory": get_inventory(),
+        "served_by": served_by,
     }
 
 
@@ -1138,12 +1144,10 @@ async def api_scan_receipt(request: Request):
     by normalized (item_name, quantity, unit) so overlapping screenshots of
     the same order don't double-count, before one inventory update pass.
     """
-    api_key = require_gemini_key(request)
+    keys = require_ai_keys(request)
     form = await request.form()
     uploads: List[UploadFile] = []
     for field_name, value in form.multi_items():
-        # NOTE: form parsing yields starlette UploadFiles; FastAPI's UploadFile
-        # is a subclass of it, so test against the starlette base class.
         if (
             field_name in ("files", "file")
             and isinstance(value, StarletteUploadFile)
@@ -1157,9 +1161,11 @@ async def api_scan_receipt(request: Request):
     merged: List[ReceiptLineItem] = []
     seen = set()
     store_name = "Grocery Store"
+    last_served_by = ""
     for upload in uploads:
         image = await load_image(upload)
-        scan_res = gemini_call(analyze_grocery_receipt, api_key, image, active_shop_list)
+        scan_res, served_by = ai_call(analyze_grocery_receipt, keys, image, active_shop_list)
+        last_served_by = served_by
         if store_name == "Grocery Store" and scan_res.store_name:
             store_name = scan_res.store_name
         for item in scan_res.items:
@@ -1172,62 +1178,78 @@ async def api_scan_receipt(request: Request):
                 continue
             seen.add(dedupe_key)
             merged.append(item)
-    return _receipt_response(store_name, merged)
+    return _receipt_response(store_name, merged, last_served_by)
 
 
 @app.post("/api/receipt/scan-pdf")
 async def api_scan_receipt_pdf(request: Request, file: UploadFile = File(...)):
     """Import an online grocery order from a PDF (order confirmation/receipt)."""
-    api_key = require_gemini_key(request)
+    keys = require_ai_keys(request)
     pdf_bytes = await file.read()
     if not pdf_bytes:
         raise HTTPException(status_code=400, detail="That PDF file was empty.")
-    scan_res = gemini_call(
-        analyze_receipt_pdf, api_key, pdf_bytes, _active_shopping_list()
+    scan_res, served_by = ai_call(
+        analyze_receipt_pdf, keys, pdf_bytes, _active_shopping_list()
     )
-    return _receipt_response(scan_res.store_name, scan_res.items)
+    return _receipt_response(scan_res.store_name, scan_res.items, served_by)
 
 
 @app.post("/api/receipt/paste")
 def api_paste_receipt(body: ReceiptPasteRequest, request: Request):
     """Import an online grocery order from pasted confirmation text/email."""
-    api_key = require_gemini_key(request)
+    keys = require_ai_keys(request)
     text = (body.text or "").strip()
     if not text:
         raise HTTPException(
             status_code=400, detail="Paste your order or receipt text first."
         )
-    scan_res = gemini_call(
-        analyze_receipt_text, api_key, text, _active_shopping_list()
+    scan_res, served_by = ai_call(
+        analyze_receipt_text, keys, text, _active_shopping_list()
     )
-    return _receipt_response(scan_res.store_name, scan_res.items)
+    return _receipt_response(scan_res.store_name, scan_res.items, served_by)
 
 
-# ---------- Gemini key validation (per-user bring-your-own-key) ----------
+# ---------- Provider key validation ----------
+
+
+class ValidateProviderRequest(BaseModel):
+    provider: str = "gemini"
+    api_key: str = ""
+
+
+@app.post("/api/validate-provider")
+def api_validate_provider(body: ValidateProviderRequest, request: Request):
+    """Validate any supported AI provider key (Gemini, Groq, OpenRouter)."""
+    provider = body.provider.lower().strip()
+    key = body.api_key.strip()
+    if not key:
+        header_key = (
+            request.headers.get(f"x-{provider}-key")
+            or request.headers.get(f"X-{provider.capitalize()}-Key")
+            or ""
+        )
+        key = header_key.strip()
+    if not key:
+        raise HTTPException(
+            status_code=400, detail=f"No key provided. Paste your {provider.capitalize()} API key first."
+        )
+    ok, msg = validate_provider_key(provider, key)
+    if not ok:
+        return {"ok": False, "error": msg}
+    return {"ok": True, "message": msg}
 
 
 @app.post("/api/validate-key")
 def api_validate_key(request: Request):
-    """Validate a user-supplied Gemini key with one tiny test call.
-
-    The key arrives in the X-Gemini-Key header, is used for a single
-    minimal generateContent call against Google, and is never stored
-    or logged by the backend.
-    """
+    """Validate a user-supplied Gemini key (backward compatible endpoint)."""
     api_key = request.headers.get("x-gemini-key") or ""
     if not api_key:
         raise HTTPException(
             status_code=400, detail="No key provided. Paste your Gemini API key first."
         )
-    try:
-        client = get_client(api_key)
-        client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents="ping",
-            config=types.GenerateContentConfig(max_output_tokens=16, temperature=0),
-        )
-    except Exception as e:
-        return {"ok": False, "error": f"That key didn't work — Google rejected it. ({e})"}
+    ok, msg = validate_provider_key("gemini", api_key)
+    if not ok:
+        return {"ok": False, "error": f"That key didn't work — {msg}"}
     return {"ok": True, "message": "Key works! You're connected."}
 
 

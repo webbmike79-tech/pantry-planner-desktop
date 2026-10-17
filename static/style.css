@@ -382,3 +382,43 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
 .url-text { font-size: 1.15rem; font-weight: 700; color: var(--accent-soft); word-break: break-all; }
 #phone-code { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.06em; }
 #nav-phone[hidden], #phone-details[hidden] { display: none; }
+
+.failover-chain-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  margin-top: 6px;
+}
+
+.chain-step {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 500;
+}
+
+.chain-step.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.served-by-tag {
+  display: inline-block;
+  font-size: 0.76rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  margin-left: 8px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
