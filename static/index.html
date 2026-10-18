@@ -221,12 +221,18 @@
         <button data-loc="Freezer">Freezer</button>
         <button data-loc="Cupboard / Pantry">Pantry</button>
       </div>
+      <p class="transparency-note" style="font-size: 0.85rem; color: var(--muted); margin: 8px 0 12px; line-height: 1.4;">
+        🔒 Your photo is read, then deleted — we keep the item list, not the picture.
+      </p>
       <label class="btn btn-primary file-btn">
         📷 Take or choose photo
         <input id="scan-file" type="file" accept="image/*" hidden>
       </label>
       <p class="file-name" id="scan-file-name">No photo chosen yet</p>
-      <img id="scan-preview" class="photo-preview" alt="Shelf photo preview" hidden>
+      <div id="scan-preview-wrapper" style="position: relative; margin: 8px 0;" hidden>
+        <img id="scan-preview" class="photo-preview" alt="Shelf photo preview" hidden>
+        <button id="scan-discard-btn" class="btn btn-ghost" type="button" style="margin-top: 6px; width: 100%;">✕ Discard / Cancel</button>
+      </div>
       <button id="scan-btn" class="btn btn-accent" disabled>🔍 Scan Photo &amp; Log Items</button>
       <p class="form-msg" id="scan-msg" role="status"></p>
     </div>
@@ -423,12 +429,18 @@
     <h2>🧾 Scan Receipt / Import Online Order</h2>
     <div class="card">
       <p class="hint">Snap your paper receipt — or import an online order — to auto-restock your kitchen and check off your list.</p>
+      <p class="transparency-note" style="font-size: 0.85rem; color: var(--muted); margin: 8px 0 12px; line-height: 1.4;">
+        🔒 Your receipt is read, then deleted — we keep the items, not the receipt.
+      </p>
       <label class="btn btn-primary file-btn">
         📷 Take or choose receipt photos / screenshots
         <input id="receipt-file" type="file" accept="image/*" multiple hidden>
       </label>
       <p class="file-name" id="receipt-file-name">No photos chosen yet</p>
-      <img id="receipt-preview" class="photo-preview" alt="Receipt photo preview" hidden>
+      <div id="receipt-preview-wrapper" style="position: relative; margin: 8px 0;" hidden>
+        <img id="receipt-preview" class="photo-preview" alt="Receipt photo preview" hidden>
+        <button id="receipt-discard-btn" class="btn btn-ghost" type="button" style="margin-top: 6px; width: 100%;">✕ Discard / Cancel</button>
+      </div>
       <button id="receipt-btn" class="btn btn-accent" disabled>🧾 Scan Receipt &amp; Auto-Restock</button>
       <hr class="sep">
       <p class="hint">Ordered online? Import the order PDF instead:</p>

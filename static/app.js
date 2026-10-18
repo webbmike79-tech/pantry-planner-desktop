@@ -2136,19 +2136,59 @@ function openPhotoChooserModal(title, allowMultiple, onPhotoTaken, onGalleryPick
   modal.hidden = false;
 }
 
-function applyChosenPhotos(flowKey, files, nameEl, previewEl, btn) {
-  selectedPhotoFiles[flowKey] = files;
-  if (!files || !files.length) {
-    nameEl.textContent = "No photo chosen yet";
+function discardScanImage(flowKey) {
+  if (selectedPhotoFiles && selectedPhotoFiles[flowKey]) {
+    selectedPhotoFiles[flowKey] = null;
+  }
+  const fileInput = flowKey === "scan" ? $("#scan-file") : $("#receipt-file");
+  const nameEl = flowKey === "scan" ? $("#scan-file-name") : $("#receipt-file-name");
+  const previewEl = flowKey === "scan" ? $("#scan-preview") : $("#receipt-preview");
+  const wrapper = flowKey === "scan" ? $("#scan-preview-wrapper") : $("#receipt-preview-wrapper");
+  const btn = flowKey === "scan" ? $("#scan-btn") : $("#receipt-btn");
+
+  if (fileInput) fileInput.value = "";
+  if (nameEl) nameEl.textContent = flowKey === "scan" ? "No photo chosen yet" : "No photos chosen yet";
+  if (previewEl) {
+    if (previewEl.dataset && previewEl.dataset.objectUrl) {
+      try { URL.revokeObjectURL(previewEl.dataset.objectUrl); } catch (e) {}
+      delete previewEl.dataset.objectUrl;
+    } else if (previewEl.src && previewEl.src.startsWith("blob:")) {
+      try { URL.revokeObjectURL(previewEl.src); } catch (e) {}
+    }
+    if (typeof previewEl.removeAttribute === "function") {
+      previewEl.removeAttribute("src");
+    }
+    previewEl.src = "";
     previewEl.hidden = true;
-    btn.disabled = true;
+  }
+  if (wrapper) wrapper.hidden = true;
+  if (btn) btn.disabled = true;
+}
+
+function applyChosenPhotos(flowKey, files, nameEl, previewEl, btn) {
+  if (!files || !files.length) {
+    discardScanImage(flowKey);
     return;
   }
+  selectedPhotoFiles[flowKey] = files;
   nameEl.textContent = files.length > 1
     ? `${files.length} photos chosen (${files[0].name}, …)`
     : files[0].name;
-  previewEl.src = URL.createObjectURL(files[0]);
+
+  if (previewEl.dataset && previewEl.dataset.objectUrl) {
+    try { URL.revokeObjectURL(previewEl.dataset.objectUrl); } catch (e) {}
+  } else if (previewEl.src && previewEl.src.startsWith("blob:")) {
+    try { URL.revokeObjectURL(previewEl.src); } catch (e) {}
+  }
+
+  const objUrl = URL.createObjectURL(files[0]);
+  if (previewEl.dataset) {
+    previewEl.dataset.objectUrl = objUrl;
+  }
+  previewEl.src = objUrl;
   previewEl.hidden = false;
+  const wrapper = $(`#${flowKey}-preview-wrapper`);
+  if (wrapper) wrapper.hidden = false;
   btn.disabled = false;
 }
 
@@ -2280,7 +2320,7 @@ async function scanShelfPhoto() {
   } catch (e) {
     setMsg(msg, e.message, "err");
   } finally {
-    btn.disabled = false;
+    discardScanImage("scan");
   }
 }
 
@@ -2334,7 +2374,7 @@ async function scanReceipt() {
   } catch (e) {
     setMsg(msg, e.message, "err");
   } finally {
-    btn.disabled = false;
+    discardScanImage("receipt");
   }
 }
 
@@ -2358,7 +2398,10 @@ async function scanReceiptPdf() {
   } catch (e) {
     setMsg(msg, e.message, "err");
   } finally {
-    btn.disabled = false;
+    fileInput.value = "";
+    const nameEl = $("#receipt-pdf-name");
+    if (nameEl) nameEl.textContent = "No PDF chosen yet";
+    btn.disabled = true;
   }
 }
 
@@ -2392,6 +2435,8 @@ async function pasteReceiptText() {
 function wireTabs() {
   document.querySelectorAll(".tabbar button").forEach((btn) => {
     btn.addEventListener("click", () => {
+      discardScanImage("scan");
+      discardScanImage("receipt");
       document.querySelectorAll(".tabbar button").forEach((b) => b.classList.toggle("active", b === btn));
       document.querySelectorAll(".tab-page").forEach((p) => p.classList.toggle("active", p.id === btn.dataset.tab));
       window.scrollTo({ top: 0 });
@@ -2651,6 +2696,10 @@ function init() {
   });
   wirePhotoInput($("#scan-file"), $("#scan-file-name"), $("#scan-preview"), $("#scan-btn"), "scan");
   $("#scan-btn").addEventListener("click", scanShelfPhoto);
+  const scanDiscardBtn = $("#scan-discard-btn");
+  if (scanDiscardBtn) {
+    scanDiscardBtn.addEventListener("click", () => discardScanImage("scan"));
+  }
 
   const modeOnHandBtn = $("#mode-onhand-btn");
   if (modeOnHandBtn) {
@@ -2714,6 +2763,18 @@ function init() {
   $("#export-btn").addEventListener("click", exportList);
   wirePhotoInput($("#receipt-file"), $("#receipt-file-name"), $("#receipt-preview"), $("#receipt-btn"), "receipt");
   $("#receipt-btn").addEventListener("click", scanReceipt);
+  const receiptDiscardBtn = $("#receipt-discard-btn");
+  if (receiptDiscardBtn) {
+    receiptDiscardBtn.addEventListener("click", () => discardScanImage("receipt"));
+  }
+  window.addEventListener("beforeunload", () => {
+    discardScanImage("scan");
+    discardScanImage("receipt");
+  });
+  window.addEventListener("pagehide", () => {
+    discardScanImage("scan");
+    discardScanImage("receipt");
+  });
   const pdfInput = $("#receipt-pdf-file");
   pdfInput.addEventListener("change", () => {
     const f = pdfInput.files[0];

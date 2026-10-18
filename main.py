@@ -1302,15 +1302,28 @@ async def api_scan_photo(
     if location not in LOCATIONS:
         raise HTTPException(status_code=400, detail=f"Unknown location: {location}")
     keys = require_ai_keys(request)
-    image = await load_image(file)
-    detected, served_by = ai_call(analyze_storage_photo, keys, image, location)
-    add_inventory_items(location, detected)
-    return {
-        "added": len(detected),
-        "items": [d.model_dump() for d in detected],
-        "inventory": get_inventory(),
-        "served_by": served_by,
-    }
+    try:
+        image = await load_image(file)
+        try:
+            detected, served_by = ai_call(analyze_storage_photo, keys, image, location)
+            add_inventory_items(location, detected)
+            return {
+                "added": len(detected),
+                "items": [d.model_dump() for d in detected],
+                "inventory": get_inventory(),
+                "served_by": served_by,
+            }
+        finally:
+            if hasattr(image, "close"):
+                try:
+                    image.close()
+                except Exception:
+                    pass
+    finally:
+        try:
+            await file.close()
+        except Exception:
+            pass
 
 
 # ---------- Weekly plan ----------
@@ -1627,23 +1640,36 @@ async def api_scan_receipt(request: Request):
     merged: List[ReceiptLineItem] = []
     seen = set()
     store_name = "Grocery Store"
-    last_served_by = ""
-    for upload in uploads:
-        image = await load_image(upload)
-        scan_res, served_by = ai_call(analyze_grocery_receipt, keys, image, active_shop_list)
-        last_served_by = served_by
-        if store_name == "Grocery Store" and scan_res.store_name:
-            store_name = scan_res.store_name
-        for item in scan_res.items:
-            dedupe_key = (
-                item.item_name.strip().lower(),
-                round(float(item.quantity), 2),
-                item.unit.strip().lower(),
-            )
-            if dedupe_key in seen:
-                continue
-            seen.add(dedupe_key)
-            merged.append(item)
+    try:
+        for upload in uploads:
+            image = await load_image(upload)
+            try:
+                scan_res, served_by = ai_call(analyze_grocery_receipt, keys, image, active_shop_list)
+                last_served_by = served_by
+                if store_name == "Grocery Store" and scan_res.store_name:
+                    store_name = scan_res.store_name
+                for item in scan_res.items:
+                    dedupe_key = (
+                        item.item_name.strip().lower(),
+                        round(float(item.quantity), 2),
+                        item.unit.strip().lower(),
+                    )
+                    if dedupe_key in seen:
+                        continue
+                    seen.add(dedupe_key)
+                    merged.append(item)
+            finally:
+                if hasattr(image, "close"):
+                    try:
+                        image.close()
+                    except Exception:
+                        pass
+    finally:
+        for upload in uploads:
+            try:
+                await upload.close()
+            except Exception:
+                pass
     return _receipt_response(store_name, merged, last_served_by)
 
 
@@ -1651,13 +1677,19 @@ async def api_scan_receipt(request: Request):
 async def api_scan_receipt_pdf(request: Request, file: UploadFile = File(...)):
     """Import an online grocery order from a PDF (order confirmation/receipt)."""
     keys = require_ai_keys(request)
-    pdf_bytes = await file.read()
-    if not pdf_bytes:
-        raise HTTPException(status_code=400, detail="That PDF file was empty.")
-    scan_res, served_by = ai_call(
-        analyze_receipt_pdf, keys, pdf_bytes, _active_shopping_list()
-    )
-    return _receipt_response(scan_res.store_name, scan_res.items, served_by)
+    try:
+        pdf_bytes = await file.read()
+        if not pdf_bytes:
+            raise HTTPException(status_code=400, detail="That PDF file was empty.")
+        scan_res, served_by = ai_call(
+            analyze_receipt_pdf, keys, pdf_bytes, _active_shopping_list()
+        )
+        return _receipt_response(scan_res.store_name, scan_res.items, served_by)
+    finally:
+        try:
+            await file.close()
+        except Exception:
+            pass
 
 
 @app.post("/api/receipt/paste")
