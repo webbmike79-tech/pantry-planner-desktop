@@ -17,6 +17,8 @@ const GROCERY_STORE_STORAGE = "pantry_grocery_store";
 const GROCERY_ZIP_STORAGE = "pantry_grocery_zip";
 
 
+let HOSTED_DEFAULT_SERVER_URL = "";
+const KITCHEN_NAME_STORAGE = "pantry_kitchen_name";
 const LOCATIONS = ["Fridge", "Freezer", "Cupboard / Pantry"];
 const CATEGORIES = [
   "Produce/Veggies", "Protein", "Dairy", "Seasoning/Spice",
@@ -43,6 +45,7 @@ const state = {
   planCreatedAt: null,
   plan: null,
   scanLocation: "Fridge",
+  kitchenName: localStorage.getItem(KITCHEN_NAME_STORAGE) || "",
 };
 
 let connectionState = "CONNECTING"; // "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "AUTH_REQUIRED"
@@ -90,7 +93,28 @@ function hasKey() {
 }
 
 function storedServerUrl() {
-  return (localStorage.getItem(SERVER_URL_STORAGE) || "").trim().replace(/\/+$/, "");
+  const custom = (localStorage.getItem(SERVER_URL_STORAGE) || "").trim();
+  if (custom) return custom.replace(/\/+$/, "");
+  return (HOSTED_DEFAULT_SERVER_URL || "").trim().replace(/\/+$/, "");
+}
+
+function isHostedDefaultConfigured() {
+  return Boolean(HOSTED_DEFAULT_SERVER_URL && HOSTED_DEFAULT_SERVER_URL.trim());
+}
+
+function setHostedDefaultServerUrl(url) {
+  HOSTED_DEFAULT_SERVER_URL = (url || "").trim();
+}
+if (typeof window !== "undefined") {
+  window.setHostedDefaultServerUrl = setHostedDefaultServerUrl;
+}
+
+function isHostedMode() {
+  if (isHostedDefaultConfigured()) return true;
+  const url = storedServerUrl();
+  if (url && (url.includes("hf.space") || url.includes("huggingface.co"))) return true;
+  if (typeof window !== "undefined" && window.__FORCE_HOSTED_MODE__) return true;
+  return false;
 }
 
 function storedAccessToken() {
@@ -221,7 +245,7 @@ async function probeHealth(serverUrl, token) {
       return { ok: false, error: `Server returned error (${res.status}).` };
     }
     const data = await res.json();
-    if (data.status === "ok" && (data.app === "pantry-planner" || data.status === "ok")) {
+    if ((data.status === "ok" || data.ok === true) && (data.app === "pantry-planner" || data.status === "ok" || data.ok === true)) {
       return { ok: true, authRequired: data.auth_required || false };
     }
     return { ok: false, error: "Connected, but server is not Pantry Planner." };
@@ -269,7 +293,12 @@ function loadFromOfflineCache() {
       state.inventory = Array.isArray(parsed) ? parsed : [];
     }
     const cachedSettings = localStorage.getItem(CACHE_SETTINGS_STORAGE);
-    if (cachedSettings) state.settings = JSON.parse(cachedSettings);
+    if (cachedSettings) {
+      state.settings = JSON.parse(cachedSettings);
+      if (state.settings && state.settings.kitchen_name) {
+        state.kitchenName = state.settings.kitchen_name;
+      }
+    }
     const cachedPlan = localStorage.getItem(CACHE_PLAN_STORAGE);
     if (cachedPlan) {
       const p = JSON.parse(cachedPlan);
@@ -472,8 +501,231 @@ async function saveKeyWithValidation(inputEl, msgEl, onSuccess) {
 function showSetup() { $("#setup-screen").hidden = false; }
 function hideSetup() { $("#setup-screen").hidden = true; }
 
-function showServerSetup() { $("#server-setup-screen").hidden = false; }
-function hideServerSetup() { $("#server-setup-screen").hidden = true; }
+function updateServerSetupScreenLayout() {
+  const urlGroup = $("#setup-server-url-group");
+  const advanced = $("#setup-server-advanced");
+  const title = $("#setup-server-title");
+  const desc = $("#setup-server-desc");
+
+  if (isHostedDefaultConfigured()) {
+    if (title) title.textContent = "Join Your Kitchen";
+    if (desc) desc.textContent = "Enter your household code to connect to your shared pantry.";
+    if (advanced && urlGroup) {
+      advanced.hidden = false;
+      if (!advanced.contains(urlGroup)) {
+        advanced.appendChild(urlGroup);
+      }
+    }
+  } else {
+    if (title) title.textContent = "Connect to Server";
+    if (desc) desc.textContent = "Connect this device to Pantry Planner so you share inventory, recipes, and shopping lists.";
+    if (advanced && urlGroup) {
+      advanced.hidden = true;
+      const card = $("#server-setup-screen .setup-card");
+      if (card && advanced.contains(urlGroup)) {
+        card.insertBefore(urlGroup, advanced);
+      }
+    }
+  }
+}
+
+function showServerSetup() {
+  updateServerSetupScreenLayout();
+  const screen = $("#server-setup-screen");
+  if (screen) screen.hidden = false;
+}
+function hideServerSetup() {
+  const screen = $("#server-setup-screen");
+  if (screen) screen.hidden = true;
+}
+
+function renderKitchenName() {
+  const banner = $("#kitchen-name-banner");
+  if (banner) {
+    if (state.kitchenName) {
+      banner.hidden = false;
+      banner.textContent = `You're in: ${state.kitchenName}`;
+    } else {
+      banner.hidden = true;
+      banner.textContent = "";
+    }
+  }
+
+  const settingsInput = $("#settings-kitchen-name-input");
+  const settingsBtn = $("#settings-kitchen-name-btn");
+  const settingsHint = $("#settings-kitchen-name-hint");
+  if (settingsInput) {
+    if (state.kitchenName) {
+      settingsInput.value = state.kitchenName;
+      settingsInput.readOnly = true;
+      if (settingsBtn) settingsBtn.hidden = true;
+      if (settingsHint) settingsHint.textContent = "Kitchen name is locked for this household.";
+    } else {
+      settingsInput.value = "";
+      settingsInput.readOnly = false;
+      if (settingsBtn) settingsBtn.hidden = false;
+      if (settingsHint) settingsHint.textContent = "Your kitchen is currently unnamed. Enter a name to personalize it.";
+    }
+  }
+}
+
+function checkNameOnboardingPrompt() {
+  if (!isHostedMode() || !isOnline()) return;
+  if (state.kitchenName) return;
+  if (sessionStorage.getItem("name_onboarding_skipped")) return;
+
+  const modal = $("#name-onboarding-modal");
+  if (modal) {
+    modal.hidden = false;
+    const input = $("#onboarding-name-input");
+    if (input) setTimeout(() => input.focus(), 100);
+  }
+}
+
+async function submitNameOnboarding() {
+  const input = $("#onboarding-name-input");
+  const msg = $("#onboarding-name-msg");
+  const raw = (input ? input.value : "").trim();
+  if (!raw) {
+    setMsg(msg, "Please enter your name or tap 'Skip for now'.", "err");
+    return;
+  }
+  const display = raw.endsWith("'s Kitchen") ? raw : `${raw}'s Kitchen`;
+  try {
+    const res = await api("/api/household/name", {
+      method: "POST",
+      body: JSON.stringify({ kitchen_name: display }),
+    });
+    if (res && res.kitchen_name) {
+      state.kitchenName = res.kitchen_name;
+      localStorage.setItem(KITCHEN_NAME_STORAGE, state.kitchenName);
+      renderKitchenName();
+    }
+    const modal = $("#name-onboarding-modal");
+    if (modal) modal.hidden = true;
+    toast(`Welcome to ${state.kitchenName}! 🍳`);
+  } catch (e) {
+    setMsg(msg, `Error saving name: ${e.message}`, "err");
+  }
+}
+
+function skipNameOnboarding() {
+  sessionStorage.setItem("name_onboarding_skipped", "true");
+  const modal = $("#name-onboarding-modal");
+  if (modal) modal.hidden = true;
+}
+
+async function saveKitchenNameFromSettings() {
+  const input = $("#settings-kitchen-name-input");
+  const raw = (input ? input.value : "").trim();
+  if (!raw) {
+    toast("Please enter a name for your kitchen.");
+    return;
+  }
+  const display = raw.endsWith("'s Kitchen") ? raw : `${raw}'s Kitchen`;
+  try {
+    const res = await api("/api/household/name", {
+      method: "POST",
+      body: JSON.stringify({ kitchen_name: display }),
+    });
+    if (res && res.kitchen_name) {
+      state.kitchenName = res.kitchen_name;
+      localStorage.setItem(KITCHEN_NAME_STORAGE, state.kitchenName);
+      renderKitchenName();
+      toast("Kitchen name saved! 🎉");
+    }
+  } catch (e) {
+    toast(`Error saving kitchen name: ${e.message}`);
+  }
+}
+
+function showSwitchKitchenDialog(newCode, onConfirm, onCancel) {
+  const modal = $("#switch-kitchen-modal");
+  if (!modal) {
+    const ok = typeof window !== "undefined" && window.confirm
+      ? window.confirm("This opens a different kitchen than the one you used before. Switch kitchens?")
+      : true;
+    if (ok) {
+      if (onConfirm) onConfirm();
+    } else {
+      if (onCancel) onCancel();
+    }
+    return;
+  }
+  modal.hidden = false;
+  const confirmBtn = $("#switch-kitchen-confirm-btn");
+  const cancelBtn = $("#switch-kitchen-cancel-btn");
+
+  const cleanup = () => {
+    modal.hidden = true;
+    if (confirmBtn) confirmBtn.onclick = null;
+    if (cancelBtn) cancelBtn.onclick = null;
+  };
+
+  if (confirmBtn) {
+    confirmBtn.onclick = () => {
+      cleanup();
+      if (onConfirm) onConfirm();
+    };
+  }
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      cleanup();
+      if (onCancel) onCancel();
+    };
+  }
+}
+
+function applyHouseholdCode(code) {
+  const currentCode = (storedAccessToken() || "").trim();
+  if (currentCode && currentCode !== (code || "").trim()) {
+    state.kitchenName = "";
+    localStorage.removeItem(KITCHEN_NAME_STORAGE);
+    renderKitchenName();
+  }
+  localStorage.setItem(ACCESS_TOKEN_STORAGE, code);
+  if (isHostedDefaultConfigured() && !localStorage.getItem(SERVER_URL_STORAGE)) {
+    localStorage.setItem(SERVER_URL_STORAGE, HOSTED_DEFAULT_SERVER_URL);
+  }
+  const tokenInput = $("#server-token-input");
+  if (tokenInput) tokenInput.value = code;
+  const setupTokenInput = $("#setup-server-token");
+  if (setupTokenInput) setupTokenInput.value = code;
+  hideServerSetup();
+  refreshAll().then(() => {
+    checkNameOnboardingPrompt();
+  });
+}
+
+function handleMagicInviteLink() {
+  let paramCode = "";
+  if (typeof window !== "undefined" && window.location && window.location.search) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      paramCode = (params.get("household") || params.get("token") || "").trim();
+      if (paramCode) {
+        params.delete("household");
+        params.delete("token");
+        const cleanSearch = params.toString() ? `?${params.toString()}` : "";
+        const cleanUrl = `${window.location.pathname}${cleanSearch}${window.location.hash}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {}
+  }
+
+  if (!paramCode) return;
+
+  const currentCode = (storedAccessToken() || "").trim();
+  if (currentCode && currentCode !== paramCode) {
+    showSwitchKitchenDialog(
+      paramCode,
+      () => applyHouseholdCode(paramCode),
+      () => {}
+    );
+  } else {
+    applyHouseholdCode(paramCode);
+  }
+}
 
 function showAddItemModal() {
   const modal = $("#add-item-modal");
@@ -554,7 +806,9 @@ async function api(path, opts = {}) {
   let body = opts.body;
   if (body && !(body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
-    body = JSON.stringify(body);
+    if (typeof body !== "string") {
+      body = JSON.stringify(body);
+    }
   }
 
   const url = buildUrl(path);
@@ -963,20 +1217,40 @@ async function saveServerSettings() {
     urlInput.value = url;
   }
 
-  setMsg(msg, "Connecting…");
-  const res = await probeHealth(url, token);
-  if (!res.ok) {
-    setMsg(msg, `❌ Cannot connect: ${res.error}`, "err");
-    return;
+  const currentCode = (storedAccessToken() || "").trim();
+  const doSave = async () => {
+    if (currentCode && token !== currentCode) {
+      state.kitchenName = "";
+      localStorage.removeItem(KITCHEN_NAME_STORAGE);
+      renderKitchenName();
+    }
+    setMsg(msg, "Connecting…");
+    const res = await probeHealth(url, token);
+    if (!res.ok) {
+      setMsg(msg, `❌ Cannot connect: ${res.error}`, "err");
+      return;
+    }
+
+    localStorage.setItem(SERVER_URL_STORAGE, url);
+    localStorage.setItem(ACCESS_TOKEN_STORAGE, token);
+    setMsg(msg, "✅ Connected and saved!", "ok");
+    toast("Connected to Home Server ✅");
+
+    setConnectionState("CONNECTED");
+    refreshAll();
+  };
+
+  if (isHostedMode() && currentCode && token && token !== currentCode) {
+    showSwitchKitchenDialog(
+      token,
+      () => doSave(),
+      () => {
+        tokenInput.value = currentCode;
+      }
+    );
+  } else {
+    await doSave();
   }
-
-  localStorage.setItem(SERVER_URL_STORAGE, url);
-  localStorage.setItem(ACCESS_TOKEN_STORAGE, token);
-  setMsg(msg, "✅ Connected and saved!", "ok");
-  toast("Connected to Home Server ✅");
-
-  setConnectionState("CONNECTED");
-  refreshAll();
 }
 
 /* ---------------- Menu (Tab 3) ---------------- */
@@ -1848,10 +2122,20 @@ async function refreshAll(silent = false) {
     state.planCreatedAt = latest.created_at;
     state.plan = latest.plan;
 
+    if (settings && typeof settings.kitchen_name === "string") {
+      state.kitchenName = settings.kitchen_name;
+      if (state.kitchenName) {
+        localStorage.setItem(KITCHEN_NAME_STORAGE, state.kitchenName);
+      } else {
+        localStorage.removeItem(KITCHEN_NAME_STORAGE);
+      }
+    }
+
     saveToOfflineCache(inv, settings, latest);
     setConnectionState("CONNECTED");
     renderAll();
     await flushOutbox();
+    checkNameOnboardingPrompt();
   } catch (err) {
     // Failed to connect live: fallback to offline cache
     loadFromOfflineCache();
@@ -1863,6 +2147,7 @@ async function refreshAll(silent = false) {
 }
 
 function renderAll() {
+  renderKitchenName();
   renderInventory();
   fillDietForm();
   renderMenu();
@@ -1894,6 +2179,9 @@ function init() {
   buildDietForm();
   wireTabs();
 
+  handleMagicInviteLink();
+  updateServerSetupScreenLayout();
+
   // Populate Server Settings inputs
   const serverInput = $("#server-url-input");
   const tokenInput = $("#server-token-input");
@@ -1901,13 +2189,42 @@ function init() {
   if (tokenInput) tokenInput.value = storedAccessToken();
 
   // Check if onboarding overlays should appear:
-  // 1. If running inside Capacitor without a configured server URL, show server setup screen.
-  // 2. In connected mode (server URL configured), NEVER prompt for, require, or block on keys.
-  // 3. Only in standalone mode with no server URL and no stored keys, show first-run key setup.
-  if (isCapacitor() && !storedServerUrl() && !sessionStorage.getItem("server_setup_skipped")) {
+  // 1. In hosted mode with default URL configured, prompt for household code on first run.
+  // 2. If running inside Capacitor without a configured server URL, show server setup screen.
+  // 3. In connected mode (server URL configured), NEVER prompt for, require, or block on keys.
+  // 4. Only in standalone mode with no server URL and no stored keys, show first-run key setup.
+  if (isHostedDefaultConfigured() && !storedAccessToken() && !sessionStorage.getItem("server_setup_skipped")) {
+    showServerSetup();
+  } else if (isCapacitor() && !storedServerUrl() && !sessionStorage.getItem("server_setup_skipped")) {
     showServerSetup();
   } else if (!storedServerUrl() && !hasKey() && !sessionStorage.getItem("setup_skipped")) {
     showSetup();
+  }
+
+  // Name Onboarding & Kitchen Name events
+  const nameContinueBtn = $("#onboarding-name-continue-btn");
+  if (nameContinueBtn) nameContinueBtn.addEventListener("click", submitNameOnboarding);
+  const nameSkipBtn = $("#onboarding-name-skip-btn");
+  if (nameSkipBtn) nameSkipBtn.addEventListener("click", skipNameOnboarding);
+  const settingsKitchenNameBtn = $("#settings-kitchen-name-btn");
+  if (settingsKitchenNameBtn) settingsKitchenNameBtn.addEventListener("click", saveKitchenNameFromSettings);
+  const onboardingNameInput = $("#onboarding-name-input");
+  if (onboardingNameInput) {
+    onboardingNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitNameOnboarding();
+      }
+    });
+  }
+  const settingsKitchenNameInput = $("#settings-kitchen-name-input");
+  if (settingsKitchenNameInput) {
+    settingsKitchenNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !settingsKitchenNameInput.readOnly) {
+        e.preventDefault();
+        saveKitchenNameFromSettings();
+      }
+    });
   }
 
   // AI Provider Keys setup events
@@ -1951,6 +2268,10 @@ function init() {
     const tokenInput = $("#setup-server-token");
     const msg = $("#setup-server-msg");
     let val = (input.value || "").trim().replace(/\/+$/, "");
+    if (!val && isHostedDefaultConfigured()) {
+      val = hostedDefaultServerUrl();
+      input.value = val;
+    }
     const tok = (tokenInput.value || "").trim();
     if (!val) {
       setMsg(msg, "Enter your desktop server IP or URL first.", "err");
@@ -1960,20 +2281,43 @@ function init() {
       val = (val.includes("hf.space") ? "https://" : "http://") + val;
       input.value = val;
     }
-    setMsg(msg, "Checking connection…");
-    const res = await probeHealth(val, tok);
-    if (res.ok) {
-      localStorage.setItem(SERVER_URL_STORAGE, val);
-      localStorage.setItem(ACCESS_TOKEN_STORAGE, tok);
-      setMsg(msg, "✅ Connected! Loading data…", "ok");
-      setTimeout(() => {
-        hideServerSetup();
-        if (serverInput) serverInput.value = val;
-        if (tokenInput) tokenInput.value = tok;
-        refreshAll();
-      }, 600);
+
+    const currentCode = (storedAccessToken() || "").trim();
+    const doConnect = async () => {
+      if (currentCode && tok !== currentCode) {
+        state.kitchenName = "";
+        localStorage.removeItem(KITCHEN_NAME_STORAGE);
+        renderKitchenName();
+      }
+      setMsg(msg, "Checking connection…");
+      const res = await probeHealth(val, tok);
+      if (res.ok) {
+        localStorage.setItem(SERVER_URL_STORAGE, val);
+        localStorage.setItem(ACCESS_TOKEN_STORAGE, tok);
+        setMsg(msg, "✅ Connected! Loading data…", "ok");
+        setTimeout(() => {
+          hideServerSetup();
+          if (serverInput) serverInput.value = val;
+          if (tokenInput) tokenInput.value = tok;
+          refreshAll().then(() => {
+            checkNameOnboardingPrompt();
+          });
+        }, 600);
+      } else {
+        setMsg(msg, `❌ Cannot connect: ${res.error}`, "err");
+      }
+    };
+
+    if (isHostedMode() && currentCode && tok && tok !== currentCode) {
+      showSwitchKitchenDialog(
+        tok,
+        () => doConnect(),
+        () => {
+          tokenInput.value = currentCode;
+        }
+      );
     } else {
-      setMsg(msg, `❌ Cannot connect: ${res.error}`, "err");
+      await doConnect();
     }
   });
 

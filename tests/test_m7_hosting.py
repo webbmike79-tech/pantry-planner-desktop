@@ -19,7 +19,12 @@ from fastapi.testclient import TestClient
 
 
 class TestM7Hosting(unittest.TestCase):
+    _test_counter = 0
+
     def setUp(self):
+        TestM7Hosting._test_counter += 1
+        os.environ["PANTRY_DB_FILE"] = os.path.join(_TMP, f"m7_test_{TestM7Hosting._test_counter}.db")
+        db._initialized_households.clear()
         self.client = TestClient(main.app)
 
     def tearDown(self):
@@ -286,6 +291,197 @@ class TestM7Hosting(unittest.TestCase):
         res2 = self.client.post("/api/plan/generate", json={"daily_headcounts": {}})
         self.assertEqual(res2.status_code, 200)
         self.assertEqual(res2.json().get("served_by"), "gemini")
+
+    def test_real_format_code_end_to_end(self):
+        """A real-format code ('Maple River 42') works end-to-end:
+        first sight creates its tables + default settings; data added under it reads back under it.
+        """
+        os.environ["MULTI_HOUSEHOLD"] = "1"
+        code = "Maple River 42"
+        headers = {"X-Pantry-Token": code}
+
+        # First sight: tables created + default settings
+        res_inv = self.client.get("/api/inventory", headers=headers)
+        self.assertEqual(res_inv.status_code, 200)
+        self.assertEqual(res_inv.json(), [])
+
+        res_set = self.client.get("/api/settings", headers=headers)
+        self.assertEqual(res_set.status_code, 200)
+        self.assertEqual(res_set.json()["base_headcount"], 2)
+
+        # Data added under it reads back under it
+        res_add = self.client.post("/api/inventory", headers=headers, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Maple Syrup", "category": "Pantry/Dry", "quantity": 1.0, "unit": "bottle"}]
+        })
+        self.assertEqual(res_add.status_code, 200)
+
+        res_read = self.client.get("/api/inventory", headers=headers)
+        self.assertEqual(res_read.status_code, 200)
+        items = res_read.json()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["item_name"], "Maple Syrup")
+
+    def test_lookalike_codes_fully_isolated(self):
+        """Three lookalike codes:
+        'Maple River 42' vs 'MapleRiver42' vs 'maple river 42'
+        must be three completely isolated households with distinct table mappings.
+        """
+        os.environ["MULTI_HOUSEHOLD"] = "1"
+        c1 = "Maple River 42"
+        c2 = "MapleRiver42"
+        c3 = "maple river 42"
+
+        # Verify distinct table name mappings
+        tbls1 = db.get_table_names(c1)
+        tbls2 = db.get_table_names(c2)
+        tbls3 = db.get_table_names(c3)
+        self.assertNotEqual(tbls1, tbls2)
+        self.assertNotEqual(tbls2, tbls3)
+        self.assertNotEqual(tbls1, tbls3)
+
+        # Add 1 item to each
+        self.client.post("/api/inventory", headers={"X-Pantry-Token": c1}, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Item 1", "category": "Pantry/Dry", "quantity": 1.0, "unit": "count"}]
+        })
+        self.client.post("/api/inventory", headers={"X-Pantry-Token": c2}, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Item 2", "category": "Pantry/Dry", "quantity": 2.0, "unit": "count"}]
+        })
+        self.client.post("/api/inventory", headers={"X-Pantry-Token": c3}, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Item 3", "category": "Pantry/Dry", "quantity": 3.0, "unit": "count"}]
+        })
+
+        # Verify each sees ONLY its own item
+        items1 = self.client.get("/api/inventory", headers={"X-Pantry-Token": c1}).json()
+        items2 = self.client.get("/api/inventory", headers={"X-Pantry-Token": c2}).json()
+        items3 = self.client.get("/api/inventory", headers={"X-Pantry-Token": c3}).json()
+
+        self.assertEqual([i["item_name"] for i in items1], ["Item 1"])
+        self.assertEqual([i["item_name"] for i in items2], ["Item 2"])
+        self.assertEqual([i["item_name"] for i in items3], ["Item 3"])
+
+    def test_hostile_code_no_damage(self):
+        """Hostile code (quotes, semicolons, SQL injection text) must behave as an ordinary code:
+        no injection, no damage, gets its own empty household.
+        """
+        os.environ["MULTI_HOUSEHOLD"] = "1"
+        hostile_code = 'x"; DROP TABLE inventory;--'
+        safe_code = "SafeHousehold99"
+
+        # Seed safe household
+        self.client.post("/api/inventory", headers={"X-Pantry-Token": safe_code}, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Safe Milk", "category": "Dairy", "quantity": 1.0, "unit": "gal"}]
+        })
+
+        # Connect with hostile code
+        res_h_init = self.client.get("/api/inventory", headers={"X-Pantry-Token": hostile_code})
+        self.assertEqual(res_h_init.status_code, 200)
+        self.assertEqual(res_h_init.json(), [])
+
+        # Add item under hostile code
+        res_h_add = self.client.post("/api/inventory", headers={"X-Pantry-Token": hostile_code}, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Hostile Bread", "category": "Pantry/Dry", "quantity": 1.0, "unit": "loaf"}]
+        })
+        self.assertEqual(res_h_add.status_code, 200)
+
+        # Safe household must be completely unharmed and intact
+        safe_items = self.client.get("/api/inventory", headers={"X-Pantry-Token": safe_code}).json()
+        self.assertEqual(len(safe_items), 1)
+        self.assertEqual(safe_items[0]["item_name"], "Safe Milk")
+
+        # Hostile household reads back its own item
+        hostile_items = self.client.get("/api/inventory", headers={"X-Pantry-Token": hostile_code}).json()
+        self.assertEqual(len(hostile_items), 1)
+        self.assertEqual(hostile_items[0]["item_name"], "Hostile Bread")
+
+    def test_delete_plan_privacy_critical_isolation(self):
+        """DELETE /api/plan under household A clears ONLY A's plan;
+        household B's plan is untouched, and GET /api/plan/latest under B still returns only B's plan.
+        """
+        os.environ["MULTI_HOUSEHOLD"] = "1"
+        code_a = "House Privacy Alpha"
+        code_b = "House Privacy Beta"
+
+        plan_a = {
+            "menu": [{
+                "day": "Monday", "headcount": 2, "meal_name": "Alpha Stew",
+                "description": "Stew", "instructions": "Stew", "prep_time_minutes": 10,
+                "cook_time_minutes": 60, "dietary_tags": [], "cooked": False
+            }],
+            "shopping_list": []
+        }
+        plan_b = {
+            "menu": [{
+                "day": "Monday", "headcount": 4, "meal_name": "Beta Curry",
+                "description": "Curry", "instructions": "Simmer", "prep_time_minutes": 10,
+                "cook_time_minutes": 30, "dietary_tags": [], "cooked": False
+            }],
+            "shopping_list": []
+        }
+
+        main.save_plan(plan_a, household=code_a)
+        main.save_plan(plan_b, household=code_b)
+
+        # Both have their respective plans
+        self.assertEqual(self.client.get("/api/plan/latest", headers={"X-Pantry-Token": code_a}).json()["plan"]["menu"][0]["meal_name"], "Alpha Stew")
+        self.assertEqual(self.client.get("/api/plan/latest", headers={"X-Pantry-Token": code_b}).json()["plan"]["menu"][0]["meal_name"], "Beta Curry")
+
+        # DELETE /api/plan under A
+        res_del_a = self.client.delete("/api/plan", headers={"X-Pantry-Token": code_a})
+        self.assertEqual(res_del_a.status_code, 200)
+
+        # A's plan is cleared
+        res_a_latest = self.client.get("/api/plan/latest", headers={"X-Pantry-Token": code_a})
+        self.assertIsNone(res_a_latest.json().get("plan"))
+
+        # B's plan is 100% untouched
+        res_b_latest = self.client.get("/api/plan/latest", headers={"X-Pantry-Token": code_b})
+        self.assertIsNotNone(res_b_latest.json().get("plan"))
+        self.assertEqual(res_b_latest.json()["plan"]["menu"][0]["meal_name"], "Beta Curry")
+
+    def test_kitchen_name_server_storage(self):
+        """Display name: '<Name>'s Kitchen' formed & stored server-side per household code.
+        First set wins: second device with same code cannot overwrite and sees existing name.
+        Names are data, never markup (e.g. apostrophes, angle brackets).
+        """
+        os.environ["MULTI_HOUSEHOLD"] = "1"
+        code = "Kitchen Household 77"
+        headers = {"X-Pantry-Token": code}
+
+        # Initially unnamed
+        res_name_init = self.client.get("/api/household/name", headers=headers)
+        self.assertEqual(res_name_init.status_code, 200)
+        self.assertIsNone(res_name_init.json().get("kitchen_name"))
+
+        # First device sets name to "Mike O'Brien"
+        res_set = self.client.post("/api/household/name", headers=headers, json={"name": "Mike O'Brien"})
+        self.assertEqual(res_set.status_code, 200)
+        self.assertEqual(res_set.json()["kitchen_name"], "Mike O'Brien's Kitchen")
+        self.assertTrue(res_set.json()["created"])
+
+        # Second device with same code attempts to set name to "Sarah" -> first set wins!
+        res_set2 = self.client.post("/api/household/name", headers=headers, json={"name": "Sarah"})
+        self.assertEqual(res_set2.status_code, 200)
+        self.assertEqual(res_set2.json()["kitchen_name"], "Mike O'Brien's Kitchen")
+        self.assertFalse(res_set2.json()["created"])
+
+        # Verification via GET
+        res_get = self.client.get("/api/household/name", headers=headers)
+        self.assertEqual(res_get.json()["kitchen_name"], "Mike O'Brien's Kitchen")
+
+        # Verification in GET /api/settings
+        res_settings = self.client.get("/api/settings", headers=headers)
+        self.assertEqual(res_settings.json()["kitchen_name"], "Mike O'Brien's Kitchen")
+
+        # Test hostile markup in name: stored strictly as plain data
+        code_markup = "Markup Household 88"
+        res_markup = self.client.post("/api/household/name", headers={"X-Pantry-Token": code_markup}, json={"name": "<b>Bold Mike</b>"})
+        self.assertEqual(res_markup.json()["kitchen_name"], "<b>Bold Mike</b>'s Kitchen")
 
 
 if __name__ == "__main__":

@@ -219,9 +219,10 @@ class PhoneAccessMiddleware(BaseHTTPMiddleware):
             token = (
                 request.headers.get("x-pantry-token")
                 or request.headers.get("X-Pantry-Token")
+                or request.query_params.get("household")
                 or request.query_params.get("token")
                 or ""
-            ).strip()
+            )
 
             if not token:
                 return JSONResponse(

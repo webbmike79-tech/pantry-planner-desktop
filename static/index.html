@@ -35,18 +35,50 @@
 <div id="server-setup-screen" class="setup-overlay" hidden>
   <div class="setup-card">
     <div class="setup-emoji">🏠</div>
-    <h2>Connect to Home Server</h2>
-    <p>Connect this phone to Pantry Planner running on your desktop PC so both devices share the exact same inventory and meal plans.</p>
-    <label class="field-label" for="setup-server-url">Desktop Server Address</label>
-    <input id="setup-server-url" type="text" placeholder="http://192.168.4.159:8000"
+    <h2 id="setup-server-title">Connect to Server</h2>
+    <p id="setup-server-desc">Connect this device to Pantry Planner so you share inventory, recipes, and shopping lists.</p>
+    <div id="setup-server-url-group">
+      <label class="field-label" for="setup-server-url">Server Address</label>
+      <input id="setup-server-url" type="text" placeholder="http://192.168.4.159:8000"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint">Find this on your desktop app under <b>Connect Phone</b>.</p>
+    </div>
+    <details id="setup-server-advanced" style="margin: 10px 0; text-align: left;" hidden>
+      <summary style="cursor: pointer; color: var(--muted); font-size: 0.9rem;">Advanced (Server Address)</summary>
+    </details>
+    <label class="field-label" for="setup-server-token">Household Code / Access Code</label>
+    <input id="setup-server-token" type="text" placeholder="e.g. Maple River 42"
            autocomplete="off" autocapitalize="off" spellcheck="false">
-    <p class="hint">Find this on your desktop app under <b>Connect Phone</b>.</p>
-    <label class="field-label" for="setup-server-token">Access Code (optional)</label>
-    <input id="setup-server-token" type="password" placeholder="Leave blank if not set"
-           autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button id="setup-server-test-btn" class="btn btn-primary btn-big">Test &amp; Connect</button>
+    <button id="setup-server-test-btn" class="btn btn-primary btn-big">Connect</button>
     <p id="setup-server-msg" class="form-msg" role="status"></p>
     <button id="setup-server-skip-btn" class="btn btn-ghost">Use Standalone / Local Only</button>
+  </div>
+</div>
+
+<!-- ===== Name-First Onboarding Modal ===== -->
+<div id="name-onboarding-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">👋</div>
+    <h2>Welcome!</h2>
+    <p>What is your name?</p>
+    <label class="field-label" for="onboarding-name-input">Your Name</label>
+    <input id="onboarding-name-input" type="text" placeholder="e.g. Mike" autocomplete="name" maxlength="50">
+    <button id="onboarding-name-continue-btn" class="btn btn-primary btn-big" type="button">Continue</button>
+    <button id="onboarding-name-skip-btn" class="btn btn-ghost" type="button">Skip for now</button>
+    <p id="onboarding-name-msg" class="form-msg" role="status"></p>
+  </div>
+</div>
+
+<!-- ===== Wrong-Kitchen Guard Modal ===== -->
+<div id="switch-kitchen-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">⚠️</div>
+    <h2>Switch kitchens?</h2>
+    <p id="switch-kitchen-text">This opens a different kitchen than the one you used before. Switch kitchens?</p>
+    <div class="btn-row" style="display: flex; gap: 8px; margin-top: 16px;">
+      <button id="switch-kitchen-cancel-btn" class="btn btn-ghost" type="button" style="flex: 1;">Stay in my kitchen</button>
+      <button id="switch-kitchen-confirm-btn" class="btn btn-primary" type="button" style="flex: 1;">Switch</button>
+    </div>
   </div>
 </div>
 
@@ -153,6 +185,7 @@
     <h1>🥘 Pantry Planner</h1>
     <button id="header-refresh-btn" class="header-refresh-btn" type="button" title="Refresh all data" aria-label="Refresh">🔄</button>
   </div>
+  <div id="kitchen-name-banner" class="kitchen-name-badge" hidden></div>
   <div class="banner">🎃 Spooky Harvest Kitchen Mode</div>
   <div class="status-bar">
     <div class="stat"><span class="stat-num" id="stat-stock">0</span><span class="stat-label">📦 Stocked</span></div>
@@ -260,6 +293,14 @@
       <label class="field-label" for="server-token-input">Access Code (optional)</label>
       <input id="server-token-input" type="password" placeholder="Leave blank if access code is disabled"
              autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div id="kitchen-name-settings-row" style="margin: 12px 0;">
+        <label class="field-label" for="settings-kitchen-name-input">Kitchen Name</label>
+        <div style="display: flex; gap: 8px;">
+          <input id="settings-kitchen-name-input" type="text" placeholder="Unnamed Kitchen" style="flex: 1;" readonly>
+          <button id="settings-kitchen-name-btn" class="btn btn-primary" type="button" hidden>Save Name</button>
+        </div>
+        <p class="hint" id="settings-kitchen-name-hint" style="margin-top: 4px; font-size: 0.85rem;"></p>
+      </div>
       <div class="btn-row">
         <button id="server-save-btn" class="btn btn-primary">Connect &amp; Save</button>
         <button id="server-test-btn" class="btn">Test Connection</button>

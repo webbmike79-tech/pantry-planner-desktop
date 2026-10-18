@@ -64,6 +64,19 @@ h2 { font-size: 1.1rem; margin: 20px 4px 8px; }
   animation: ptr-spin 0.8s linear infinite;
 }
 
+.kitchen-name-badge {
+  display: inline-block;
+  background: rgba(255, 117, 24, 0.15);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-soft);
+  margin: 6px 0;
+  text-align: left;
+}
+
 /* Pull-to-refresh banner */
 .ptr-indicator {
   display: flex;

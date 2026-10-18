@@ -576,14 +576,21 @@ def process_scanned_receipt_items(
     return restocked_log
 
 
-def get_settings(household: Optional[str] = None):
+def get_settings(household: Optional[str] = None) -> dict:
     _, set_tbl, _ = db.get_table_names(household)
+    db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute(
-        f"SELECT base_headcount, dietary_tags, custom_diet_notes, essential_staples FROM {set_tbl} WHERE id = 1"
-    )
-    row = c.fetchone()
+    try:
+        c.execute(
+            f"SELECT base_headcount, dietary_tags, custom_diet_notes, essential_staples, kitchen_name FROM {set_tbl} WHERE id = 1"
+        )
+        row = c.fetchone()
+    except Exception:
+        c.execute(
+            f"SELECT base_headcount, dietary_tags, custom_diet_notes, essential_staples FROM {set_tbl} WHERE id = 1"
+        )
+        row = c.fetchone()
     conn.close()
     if not row:
         return {
@@ -591,17 +598,28 @@ def get_settings(household: Optional[str] = None):
             "dietary_tags": ["Balanced & Whole Foods"],
             "custom_diet_notes": "",
             "essential_staples": "",
+            "kitchen_name": "",
         }
+    k_name = row[4] if (len(row) > 4 and row[4]) else ""
     return {
         "base_headcount": row[0],
         "dietary_tags": json.loads(row[1]) if isinstance(row[1], str) else row[1],
         "custom_diet_notes": row[2],
         "essential_staples": row[3],
+        "kitchen_name": k_name,
     }
 
 
-def save_settings(base_headcount: int, dietary_tags: list, custom_notes: str, staples: str, household: Optional[str] = None):
+def save_settings(
+    base_headcount: int,
+    dietary_tags: list,
+    custom_notes: str,
+    staples: str,
+    household: Optional[str] = None,
+    kitchen_name: Optional[str] = None,
+):
     _, set_tbl, _ = db.get_table_names(household)
+    db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -612,12 +630,24 @@ def save_settings(base_headcount: int, dietary_tags: list, custom_notes: str, st
     """,
         (base_headcount, json.dumps(dietary_tags), custom_notes, staples),
     )
+    if kitchen_name is not None and kitchen_name.strip():
+        try:
+            c.execute(f"SELECT kitchen_name FROM {set_tbl} WHERE id = 1")
+            r = c.fetchone()
+            if not (r and r[0] and str(r[0]).strip()):
+                formatted = kitchen_name.strip()
+                if not formatted.endswith("'s Kitchen"):
+                    formatted = f"{formatted}'s Kitchen"
+                c.execute(f"UPDATE {set_tbl} SET kitchen_name = ? WHERE id = 1", (formatted,))
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
 
 def save_plan(plan_dict: dict, household: Optional[str] = None) -> Optional[int]:
     _, _, plan_tbl = db.get_table_names(household)
+    db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -632,6 +662,7 @@ def save_plan(plan_dict: dict, household: Optional[str] = None) -> Optional[int]
 
 def get_latest_plan(household: Optional[str] = None):
     _, _, plan_tbl = db.get_table_names(household)
+    db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(f"SELECT id, created_at, plan_json FROM {plan_tbl} ORDER BY id DESC LIMIT 1")
@@ -644,6 +675,7 @@ def get_latest_plan(household: Optional[str] = None):
 
 def update_saved_plan(plan_id: int, plan_dict: dict, household: Optional[str] = None):
     _, _, plan_tbl = db.get_table_names(household)
+    db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -657,6 +689,7 @@ def update_saved_plan(plan_id: int, plan_dict: dict, household: Optional[str] = 
 def clear_saved_plans(household: Optional[str] = None):
     """Delete all rows from saved_plans, completely clearing the current menu and shopping list."""
     _, _, plan_tbl = db.get_table_names(household)
+    db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(f"DELETE FROM {plan_tbl}")
@@ -942,6 +975,12 @@ class SettingsIn(BaseModel):
     dietary_tags: List[str] = []
     custom_diet_notes: str = ""
     essential_staples: str = ""
+    kitchen_name: Optional[str] = None
+
+
+class HouseholdNameIn(BaseModel):
+    name: Optional[str] = None
+    kitchen_name: Optional[str] = None
 
 
 class GeneratePlanRequest(BaseModel):
@@ -1079,8 +1118,30 @@ def api_get_settings():
 
 @app.put("/api/settings")
 def api_save_settings(body: SettingsIn):
-    save_settings(body.base_headcount, body.dietary_tags, body.custom_diet_notes, body.essential_staples)
+    save_settings(
+        body.base_headcount,
+        body.dietary_tags,
+        body.custom_diet_notes,
+        body.essential_staples,
+        kitchen_name=body.kitchen_name,
+    )
     return get_settings()
+
+
+@app.get("/api/household/name")
+def api_get_household_name():
+    name = db.get_kitchen_name()
+    return {"kitchen_name": name or None}
+
+
+@app.post("/api/household/name")
+def api_set_household_name(body: HouseholdNameIn):
+    raw = (body.kitchen_name or body.name or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Name cannot be empty.")
+    display_name = raw if raw.endswith("'s Kitchen") else f"{raw}'s Kitchen"
+    saved_name, created = db.set_kitchen_name(display_name)
+    return {"kitchen_name": saved_name, "created": created}
 
 
 # ---------- Photo scan ----------

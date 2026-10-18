@@ -103,7 +103,7 @@ def get_db_connection():
             conn.row_factory = sqlite3.Row
             return conn
     else:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(os.environ.get("PANTRY_DB_FILE", DB_FILE))
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -116,12 +116,13 @@ def get_table_names(household: Optional[str] = None) -> Tuple[str, str, str]:
     """Return (inventory_table, settings_table, saved_plans_table).
     If MULTI_HOUSEHOLD is unset: returns ('inventory', 'settings', 'saved_plans').
     If MULTI_HOUSEHOLD=1: returns tables scoped by household access code.
+    Derives table suffix strictly from first 16 hex chars of SHA-256 of exact code.
     """
     if not is_multi_household():
         return ("inventory", "settings", "saved_plans")
 
-    code = (household or current_household_var.get() or "").strip()
-    if not code:
+    code = household if household is not None else current_household_var.get()
+    if code is None or code == "":
         h_suffix = "default"
     else:
         h_suffix = hashlib.sha256(code.encode("utf-8")).hexdigest()[:16]
@@ -132,7 +133,8 @@ def get_table_names(household: Optional[str] = None) -> Tuple[str, str, str]:
 def init_db(household: Optional[str] = None, force: bool = False):
     """Ensure required tables and initial settings exist for the current or specified household."""
     inv_tbl, set_tbl, plan_tbl = get_table_names(household)
-    key = (inv_tbl, set_tbl, plan_tbl)
+    db_target = os.environ.get("DATABASE_URL", "") or os.environ.get("PANTRY_DB_FILE", DB_FILE)
+    key = (db_target, inv_tbl, set_tbl, plan_tbl)
     if key in _initialized_households and not force:
         return
 
@@ -157,9 +159,15 @@ def init_db(household: Optional[str] = None, force: bool = False):
             base_headcount INTEGER,
             dietary_tags TEXT,
             custom_diet_notes TEXT,
-            essential_staples TEXT
+            essential_staples TEXT,
+            kitchen_name TEXT DEFAULT ''
         )
     """)
+
+    try:
+        c.execute(f"ALTER TABLE {set_tbl} ADD COLUMN kitchen_name TEXT DEFAULT ''")
+    except Exception:
+        pass
 
     c.execute(f"""
         CREATE TABLE IF NOT EXISTS {plan_tbl} (
@@ -176,10 +184,51 @@ def init_db(household: Optional[str] = None, force: bool = False):
         default_tags = json.dumps(["Balanced & Whole Foods"])
         default_staples = "Olive oil, garlic powder, onion powder, black pepper, broth, fresh veggies, water"
         c.execute(f"""
-            INSERT INTO {set_tbl} (id, base_headcount, dietary_tags, custom_diet_notes, essential_staples)
-            VALUES (1, 2, ?, 'Provide wholesome meals tailored to any household restrictions entered below.', ?)
+            INSERT INTO {set_tbl} (id, base_headcount, dietary_tags, custom_diet_notes, essential_staples, kitchen_name)
+            VALUES (1, 2, ?, 'Provide wholesome meals tailored to any household restrictions entered below.', ?, '')
         """, (default_tags, default_staples))
 
     conn.commit()
     conn.close()
     _initialized_households.add(key)
+
+
+def get_kitchen_name(household: Optional[str] = None) -> str:
+    """Retrieve the kitchen display name for the current or specified household."""
+    _, set_tbl, _ = get_table_names(household)
+    init_db(household)
+    conn = get_db_connection()
+    c = conn.cursor()
+    name = ""
+    try:
+        c.execute(f"SELECT kitchen_name FROM {set_tbl} WHERE id = 1")
+        row = c.fetchone()
+        if row and row[0]:
+            name = str(row[0])
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return name
+
+
+def set_kitchen_name(name: str, household: Optional[str] = None) -> Tuple[str, bool]:
+    """First set wins: save kitchen display name if unnamed.
+    Returns (current_display_name, was_newly_set).
+    """
+    _, set_tbl, _ = get_table_names(household)
+    init_db(household)
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute(f"SELECT kitchen_name FROM {set_tbl} WHERE id = 1")
+        row = c.fetchone()
+        existing = str(row[0]).strip() if (row and row[0]) else ""
+        if existing:
+            return (existing, False)
+
+        c.execute(f"UPDATE {set_tbl} SET kitchen_name = ? WHERE id = 1", (name.strip(),))
+        conn.commit()
+        return (name.strip(), True)
+    finally:
+        conn.close()
