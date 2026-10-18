@@ -592,3 +592,38 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
   text-transform: capitalize;
 }
 
+.shop-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+
+.shop-modal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.88rem;
+}
+
+.shop-modal-item a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.shop-modal-item a:hover {
+  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+

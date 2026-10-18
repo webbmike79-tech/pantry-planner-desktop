@@ -113,6 +113,41 @@
   </div>
 </div>
 
+<!-- ===== Shop This List Modal ===== -->
+<div id="shop-modal" class="setup-overlay" hidden>
+  <div class="setup-card" style="max-height: 85vh; overflow-y: auto;">
+    <div class="setup-emoji">🛒</div>
+    <h2>Shop This List</h2>
+    <p class="hint" style="margin: 10px 0 16px; line-height: 1.5;">Pantry Planner prepares your shopping search links and hands them over to your chosen grocery service. All ordering, fulfillment, and payment happen directly on the store's website or app.</p>
+    
+    <label class="field-label" for="shop-store-picker">Choose Grocery Store</label>
+    <select id="shop-store-picker">
+      <option value="">-- Choose your store --</option>
+      <option value="instacart">Instacart</option>
+      <option value="walmart">Walmart</option>
+    </select>
+    <label class="check-line" style="font-size: 0.85rem; margin-top: 6px; margin-bottom: 12px;">
+      <input type="checkbox" id="shop-save-default-check"> Save as my default store
+    </label>
+
+    <label class="field-label" for="shop-override-zip">Shop near a different ZIP this time (optional)</label>
+    <input id="shop-override-zip" type="text" placeholder="e.g. 78701" maxlength="10">
+    <p class="hint" style="margin-top: 4px; font-size: 0.8rem;">Overrides location for this shopping session without changing your saved home ZIP.</p>
+
+    <div class="btn-row" style="margin: 16px 0 12px; display: flex; gap: 8px;">
+      <button id="shop-open-all-btn" class="btn btn-primary btn-big" type="button" style="flex: 1;">🚀 Open All Items at Store</button>
+      <button id="shop-modal-cancel-btn" class="btn btn-ghost" type="button">Close</button>
+    </div>
+    <p class="form-msg" id="shop-modal-msg" role="status"></p>
+
+    <div id="shop-modal-items-container" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
+      <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">Or open item by item:</h4>
+      <div id="shop-modal-items-list" class="shop-modal-list"></div>
+    </div>
+  </div>
+</div>
+
+
 <header class="app-header">
   <div class="header-top">
     <h1>🥘 Pantry Planner</h1>
@@ -276,7 +311,26 @@
       </div>
       <p class="hint" style="margin-top: 6px;">Automatic retry triggers on HTTP 503, 429, or timeouts.</p>
     </div>
+
+    <h2>🛒 Grocery Store Handoff</h2>
+    <div class="card" id="grocery-settings-card">
+      <p class="hint">Choose your preferred grocery service for 1-click shopping list handoff.</p>
+      <label class="field-label" for="grocery-store-select">My Grocery Store</label>
+      <select id="grocery-store-select">
+        <option value="">-- Choose your store --</option>
+        <option value="instacart">Instacart</option>
+        <option value="walmart">Walmart</option>
+      </select>
+      <label class="field-label" for="grocery-zip-input">Home Store ZIP Code (optional)</label>
+      <input id="grocery-zip-input" type="text" placeholder="e.g. 78701" maxlength="10">
+      <div class="btn-row" style="margin-top: 10px; display: flex; gap: 8px;">
+        <button id="grocery-save-btn" class="btn btn-primary" type="button">Save Grocery Preference</button>
+        <button id="grocery-clear-btn" class="btn btn-ghost" type="button">Clear</button>
+      </div>
+      <p class="form-msg" id="grocery-msg" role="status"></p>
+    </div>
   </section>
+
 
   <!-- ===== Tab 3: Weekly Menu ===== -->
   <section id="tab-menu" class="tab-page">
@@ -298,6 +352,9 @@
     <div class="card">
       <div id="shopping-list"></div>
       <p class="empty-note" id="shopping-empty">No menu planned yet — your shopping list will build from your plan.</p>
+      <div class="shop-actions-row" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+        <button id="shop-list-btn" class="btn btn-accent" type="button" style="display: none;" disabled>🛒 Shop this list</button>
+      </div>
       <button id="restock-btn" class="btn btn-primary" disabled>📥 Add Checked Items to Inventory</button>
       <button id="clear-purchased-btn" class="btn btn-danger" disabled>🧹 Clear purchased items</button>
       <p class="form-msg" id="shop-msg" role="status"></p>

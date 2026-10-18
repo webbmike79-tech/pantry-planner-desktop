@@ -13,6 +13,9 @@ const CACHE_PLAN_STORAGE = "pantry_cache_plan";
 const CACHE_TIME_STORAGE = "pantry_cache_time";
 const OUTBOX_STORAGE = "pantry_outbox";
 const SYNCED_IDS_STORAGE = "pantry_synced_client_ids";
+const GROCERY_STORE_STORAGE = "pantry_grocery_store";
+const GROCERY_ZIP_STORAGE = "pantry_grocery_zip";
+
 
 const LOCATIONS = ["Fridge", "Freezer", "Cupboard / Pantry"];
 const CATEGORIES = [
@@ -93,6 +96,32 @@ function storedServerUrl() {
 function storedAccessToken() {
   return (localStorage.getItem(ACCESS_TOKEN_STORAGE) || "").trim();
 }
+
+function getStoredGroceryStore() {
+  return (localStorage.getItem(GROCERY_STORE_STORAGE) || "").trim().toLowerCase();
+}
+function setStoredGroceryStore(store) {
+  if (store) {
+    localStorage.setItem(GROCERY_STORE_STORAGE, store.trim().toLowerCase());
+  } else {
+    localStorage.removeItem(GROCERY_STORE_STORAGE);
+  }
+}
+function getStoredGroceryZip() {
+  return (localStorage.getItem(GROCERY_ZIP_STORAGE) || "").trim();
+}
+function setStoredGroceryZip(zip) {
+  if (zip) {
+    localStorage.setItem(GROCERY_ZIP_STORAGE, zip.trim());
+  } else {
+    localStorage.removeItem(GROCERY_ZIP_STORAGE);
+  }
+}
+function clearGrocerySettings() {
+  localStorage.removeItem(GROCERY_STORE_STORAGE);
+  localStorage.removeItem(GROCERY_ZIP_STORAGE);
+}
+
 
 function isCapacitor() {
   return typeof window.Capacitor !== "undefined" || window.location.protocol === "capacitor:";
@@ -807,6 +836,7 @@ function buildDietForm() {
 }
 
 function fillDietForm() {
+  fillGrocerySettings();
   if (!state.settings) return;
   const s = state.settings;
   $("#base-headcount").value = s.base_headcount;
@@ -824,7 +854,35 @@ function fillDietForm() {
   });
 }
 
+function fillGrocerySettings() {
+  const storeSel = $("#grocery-store-select");
+  const zipInput = $("#grocery-zip-input");
+  if (storeSel) storeSel.value = getStoredGroceryStore();
+  if (zipInput) zipInput.value = getStoredGroceryZip();
+}
+
+function saveGrocerySettings() {
+  const msg = $("#grocery-msg");
+  const storeSel = $("#grocery-store-select");
+  const zipInput = $("#grocery-zip-input");
+  const store = storeSel ? storeSel.value : "";
+  const zip = zipInput ? zipInput.value : "";
+  setStoredGroceryStore(store);
+  setStoredGroceryZip(zip);
+  if (msg) setMsg(msg, "✅ Grocery store preferences saved!", "ok");
+  toast("Grocery preferences saved!");
+}
+
+function resetGrocerySettings() {
+  clearGrocerySettings();
+  fillGrocerySettings();
+  const msg = $("#grocery-msg");
+  if (msg) setMsg(msg, "Grocery store preferences cleared.", "ok");
+  toast("Grocery preferences reset.");
+}
+
 function collectDailyHeadcounts() {
+
   const out = {};
   DAYS.forEach((day) => {
     out[day] = parseInt(document.getElementById(`hc-${day}`).value, 10) || 1;
@@ -1103,8 +1161,18 @@ function renderShopping() {
   wrap.querySelectorAll("input[type=checkbox]:not([disabled])")
     .forEach((cb) => cb.addEventListener("change", updateRestockBtn));
   updateRestockBtn();
+
+  const unbought = items.filter((i) => !i.purchased);
+  const shopBtn = $("#shop-list-btn");
+  if (shopBtn) {
+    shopBtn.disabled = unbought.length === 0;
+    shopBtn.style.display = items.length === 0 ? "none" : "inline-block";
+    shopBtn.textContent = `🛒 Shop this list (${unbought.length})`;
+  }
+
   renderStatus();
 }
+
 
 function checkedShoppingIndices() {
   return Array.from(document.querySelectorAll("#shopping-list input[type=checkbox]:checked:not([disabled])"))
@@ -1204,7 +1272,154 @@ async function exportList() {
   }
 }
 
+/* ---------------- Grocery Handoff (Milestone 6) ---------------- */
+
+function buildGrocerySearchUrl(provider, itemName, zip = "") {
+  const cleanItem = (itemName || "").trim();
+  if (!cleanItem) return "";
+  const encodedItem = encodeURIComponent(cleanItem);
+  const cleanZip = (zip || "").trim();
+  const encodedZip = encodeURIComponent(cleanZip);
+
+  const p = (provider || "").toLowerCase().trim();
+  if (p === "instacart") {
+    let url = `https://www.instacart.com/store/s?k=${encodedItem}`;
+    if (cleanZip) {
+      url += `&postal_code=${encodedZip}`;
+    }
+    return url;
+  } else if (p === "walmart") {
+    let url = `https://www.walmart.com/search?q=${encodedItem}`;
+    if (cleanZip) {
+      url += `&postal_code=${encodedZip}`;
+    }
+    return url;
+  }
+  throw new Error(`Unsupported grocery provider: ${provider}`);
+}
+
+function openExternalUrl(url) {
+  if (!url) return;
+  if (isCapacitor()) {
+    window.open(url, "_system") || window.open(url, "_blank");
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
+function getUnpurchasedShoppingItems() {
+  const items = state.plan ? (state.plan.shopping_list || []) : [];
+  return items.filter((i) => !i.purchased);
+}
+
+function showShopModal() {
+  const modal = $("#shop-modal");
+  if (!modal) return;
+  const storePicker = $("#shop-store-picker");
+  const zipInput = $("#shop-override-zip");
+  const saveCheck = $("#shop-save-default-check");
+  const msg = $("#shop-modal-msg");
+  if (msg) setMsg(msg, "");
+
+  const savedStore = getStoredGroceryStore();
+  const savedZip = getStoredGroceryZip();
+
+  if (storePicker) storePicker.value = savedStore;
+  if (zipInput) zipInput.value = savedZip;
+  if (saveCheck) saveCheck.checked = false;
+
+  renderShopModalItems();
+  modal.hidden = false;
+}
+
+function hideShopModal() {
+  const modal = $("#shop-modal");
+  if (modal) modal.hidden = true;
+}
+
+function renderShopModalItems() {
+  const listEl = $("#shop-modal-items-list");
+  if (!listEl) return;
+  listEl.innerHTML = "";
+
+  const storePicker = $("#shop-store-picker");
+  const zipInput = $("#shop-override-zip");
+  const store = storePicker ? storePicker.value : "";
+  const zip = zipInput ? zipInput.value.trim() : "";
+
+  const unbought = getUnpurchasedShoppingItems();
+  if (unbought.length === 0) {
+    listEl.innerHTML = '<p class="hint">No unpurchased items on your shopping list.</p>';
+    return;
+  }
+
+  if (!store) {
+    listEl.innerHTML = '<p class="hint">Please select a grocery store above to preview search links.</p>';
+    return;
+  }
+
+  unbought.forEach((item) => {
+    let url = "";
+    try {
+      url = buildGrocerySearchUrl(store, item.item_name, zip);
+    } catch (e) {
+      url = "";
+    }
+    const row = document.createElement("div");
+    row.className = "shop-modal-item";
+    row.innerHTML = `
+      <span><b>${esc(item.item_name)}</b> <small>(${esc(item.amount_needed || "")})</small></span>
+      <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Search ↗</a>
+    `;
+    const a = row.querySelector("a");
+    if (a) {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        openExternalUrl(url);
+      });
+    }
+    listEl.appendChild(row);
+  });
+}
+
+function executeShopHandoff() {
+  const msg = $("#shop-modal-msg");
+  const storePicker = $("#shop-store-picker");
+  const zipInput = $("#shop-override-zip");
+  const saveCheck = $("#shop-save-default-check");
+
+  const store = storePicker ? storePicker.value : "";
+  if (!store) {
+    if (msg) setMsg(msg, "Please choose a grocery store first.", "err");
+    return;
+  }
+
+  const oneOffZip = zipInput ? zipInput.value.trim() : "";
+  if (saveCheck && saveCheck.checked) {
+    setStoredGroceryStore(store);
+    fillGrocerySettings();
+  }
+
+  const unbought = getUnpurchasedShoppingItems();
+  if (unbought.length === 0) {
+    if (msg) setMsg(msg, "Your shopping list has no unpurchased items.", "err");
+    return;
+  }
+
+  const storeName = store === "instacart" ? "Instacart" : "Walmart";
+  unbought.forEach((item, index) => {
+    const url = buildGrocerySearchUrl(store, item.item_name, oneOffZip);
+    setTimeout(() => {
+      openExternalUrl(url);
+    }, index * 200);
+  });
+
+  if (msg) setMsg(msg, `🚀 Opening search links for ${unbought.length} items on ${storeName}…`, "ok");
+  toast(`Opening ${unbought.length} items on ${storeName}!`);
+}
+
 /* ---------------- Photo scans ---------------- */
+
 
 // Storage for active chosen files (File objects or Blobs)
 const selectedPhotoFiles = {
@@ -1741,6 +1956,10 @@ function init() {
 
   /* Diet tab */
   $("#diet-save-btn").addEventListener("click", saveDiet);
+  const grocerySaveBtn = $("#grocery-save-btn");
+  if (grocerySaveBtn) grocerySaveBtn.addEventListener("click", saveGrocerySettings);
+  const groceryClearBtn = $("#grocery-clear-btn");
+  if (groceryClearBtn) groceryClearBtn.addEventListener("click", resetGrocerySettings);
 
   /* Menu tab */
   $("#generate-btn").addEventListener("click", generatePlan);
@@ -1752,6 +1971,17 @@ function init() {
   if (confirmClearBtn) confirmClearBtn.addEventListener("click", confirmClearMenu);
 
   /* Shopping tab */
+  const shopListBtn = $("#shop-list-btn");
+  if (shopListBtn) shopListBtn.addEventListener("click", showShopModal);
+  const shopCancelBtn = $("#shop-modal-cancel-btn");
+  if (shopCancelBtn) shopCancelBtn.addEventListener("click", hideShopModal);
+  const shopOpenAllBtn = $("#shop-open-all-btn");
+  if (shopOpenAllBtn) shopOpenAllBtn.addEventListener("click", executeShopHandoff);
+  const shopStorePicker = $("#shop-store-picker");
+  if (shopStorePicker) shopStorePicker.addEventListener("change", renderShopModalItems);
+  const shopOverrideZip = $("#shop-override-zip");
+  if (shopOverrideZip) shopOverrideZip.addEventListener("input", renderShopModalItems);
+
   $("#restock-btn").addEventListener("click", restock);
   $("#clear-purchased-btn").addEventListener("click", clearPurchased);
   $("#export-btn").addEventListener("click", exportList);
@@ -1767,6 +1997,7 @@ function init() {
   });
   $("#receipt-pdf-btn").addEventListener("click", scanReceiptPdf);
   $("#receipt-paste-btn").addEventListener("click", pasteReceiptText);
+
 
   /* Header refresh button */
   const headerRefreshBtn = $("#header-refresh-btn");
