@@ -1172,18 +1172,177 @@ async function exportList() {
 
 /* ---------------- Photo scans ---------------- */
 
-function wirePhotoInput(fileInput, nameEl, previewEl, btn) {
+// Storage for active chosen files (File objects or Blobs)
+const selectedPhotoFiles = {
+  scan: [],
+  receipt: [],
+};
+
+function getCapacitorCamera() {
+  if (typeof capacitorCamera !== "undefined" && capacitorCamera.Camera) {
+    return capacitorCamera.Camera;
+  }
+  if (typeof window.Capacitor !== "undefined" && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) {
+    return window.Capacitor.Plugins.Camera;
+  }
+  return null;
+}
+
+async function dataUrlToFile(dataUrl, filename) {
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type || "image/jpeg" });
+}
+
+function openPhotoChooserModal(title, allowMultiple, onPhotoTaken, onGalleryPicked) {
+  const modal = $("#photo-picker-modal");
+  const titleEl = $("#photo-picker-title");
+  const descEl = $("#photo-picker-desc");
+  const cameraBtn = $("#picker-camera-btn");
+  const galleryBtn = $("#picker-gallery-btn");
+  const cancelBtn = $("#picker-cancel-btn");
+
+  if (!modal) return;
+  titleEl.textContent = title || "Add Photo";
+  descEl.textContent = allowMultiple
+    ? "Take a photo with your camera or pick photos / screenshots from your gallery:"
+    : "Take a photo with your camera or choose an existing photo from your gallery:";
+
+  function close() {
+    modal.hidden = true;
+    cameraBtn.onclick = null;
+    galleryBtn.onclick = null;
+    cancelBtn.onclick = null;
+  }
+
+  cameraBtn.onclick = () => {
+    close();
+    onPhotoTaken();
+  };
+  galleryBtn.onclick = () => {
+    close();
+    onGalleryPicked();
+  };
+  cancelBtn.onclick = () => {
+    close();
+  };
+
+  modal.hidden = false;
+}
+
+function applyChosenPhotos(flowKey, files, nameEl, previewEl, btn) {
+  selectedPhotoFiles[flowKey] = files;
+  if (!files || !files.length) {
+    nameEl.textContent = "No photo chosen yet";
+    previewEl.hidden = true;
+    btn.disabled = true;
+    return;
+  }
+  nameEl.textContent = files.length > 1
+    ? `${files.length} photos chosen (${files[0].name}, …)`
+    : files[0].name;
+  previewEl.src = URL.createObjectURL(files[0]);
+  previewEl.hidden = false;
+  btn.disabled = false;
+}
+
+function wirePhotoInput(fileInput, nameEl, previewEl, btn, flowKey = "scan") {
+  const labelEl = fileInput.closest("label.file-btn");
+  const allowMultiple = fileInput.hasAttribute("multiple");
+
+  // In standard browser / PWA: standard input change handler
   fileInput.addEventListener("change", () => {
-    const files = fileInput.files;
-    if (files && files.length) {
-      nameEl.textContent = files.length > 1
-        ? `${files.length} photos chosen (${files[0].name}, …)`
-        : files[0].name;
-      previewEl.src = URL.createObjectURL(files[0]);
-      previewEl.hidden = false;
-      btn.disabled = false;
+    const files = Array.from(fileInput.files || []);
+    if (files.length) {
+      applyChosenPhotos(flowKey, files, nameEl, previewEl, btn);
     }
   });
+
+  // In Capacitor (native app): intercept click to offer explicit Camera vs Gallery choice
+  if (labelEl) {
+    labelEl.addEventListener("click", async (e) => {
+      const cameraPlugin = getCapacitorCamera();
+      if (!isCapacitor() || !cameraPlugin) {
+        // Run standard web file chooser
+        return;
+      }
+
+      // Native Capacitor flow: prevent default file browser and show explicit modal
+      e.preventDefault();
+      e.stopPropagation();
+
+      const modalTitle = flowKey === "scan" ? "📸 Shelf Photo" : "🧾 Receipt / Order Photo";
+
+      openPhotoChooserModal(
+        modalTitle,
+        allowMultiple,
+        // Option 1: Take photo with Camera
+        async () => {
+          try {
+            const photo = await cameraPlugin.getPhoto({
+              quality: 90,
+              allowEditing: false,
+              resultType: "dataUrl",
+              source: "CAMERA",
+            });
+            if (photo && photo.dataUrl) {
+              const file = await dataUrlToFile(photo.dataUrl, `camera_${Date.now()}.${photo.format || "jpeg"}`);
+              applyChosenPhotos(flowKey, [file], nameEl, previewEl, btn);
+            }
+          } catch (err) {
+            if (!String(err).includes("cancelled") && !String(err).includes("User cancelled")) {
+              console.warn("Camera capture error:", err);
+              toast("Camera unavailable: " + (err.message || err));
+            }
+          }
+        },
+        // Option 2: Choose from Gallery / Photos
+        async () => {
+          try {
+            if (allowMultiple && cameraPlugin.pickImages) {
+              const result = await cameraPlugin.pickImages({ quality: 90 });
+              if (result && result.photos && result.photos.length) {
+                const files = [];
+                for (let i = 0; i < result.photos.length; i++) {
+                  const p = result.photos[i];
+                  let f;
+                  if (p.webPath) {
+                    const r = await fetch(p.webPath);
+                    const b = await r.blob();
+                    f = new File([b], `gallery_${i}_${Date.now()}.${p.format || "jpeg"}`, { type: b.type });
+                  } else if (p.dataUrl) {
+                    f = await dataUrlToFile(p.dataUrl, `gallery_${i}_${Date.now()}.${p.format || "jpeg"}`);
+                  }
+                  if (f) files.push(f);
+                }
+                if (files.length) {
+                  applyChosenPhotos(flowKey, files, nameEl, previewEl, btn);
+                }
+                return;
+              }
+            }
+
+            // Single photo gallery selection
+            const photo = await cameraPlugin.getPhoto({
+              quality: 90,
+              allowEditing: false,
+              resultType: "dataUrl",
+              source: "PHOTOS",
+            });
+            if (photo && photo.dataUrl) {
+              const file = await dataUrlToFile(photo.dataUrl, `gallery_${Date.now()}.${photo.format || "jpeg"}`);
+              applyChosenPhotos(flowKey, [file], nameEl, previewEl, btn);
+            }
+          } catch (err) {
+            if (!String(err).includes("cancelled") && !String(err).includes("User cancelled")) {
+              console.warn("Gallery pick error:", err);
+              toast("Gallery pick error: " + (err.message || err));
+            }
+          }
+        }
+      );
+    });
+  }
 }
 
 async function scanShelfPhoto() {
@@ -1195,12 +1354,15 @@ async function scanShelfPhoto() {
   const fileInput = $("#scan-file");
   const msg = $("#scan-msg");
   const btn = $("#scan-btn");
-  if (!fileInput.files[0]) return;
+
+  const chosenFile = (selectedPhotoFiles.scan && selectedPhotoFiles.scan[0]) || (fileInput.files && fileInput.files[0]);
+  if (!chosenFile) return;
+
   btn.disabled = true;
   setMsg(msg, `Scanning ${state.scanLocation} and estimating amounts…`);
   try {
     const fd = new FormData();
-    fd.append("file", fileInput.files[0]);
+    fd.append("file", chosenFile);
     fd.append("location", state.scanLocation);
     const data = await api("/api/scan-photo", { method: "POST", body: fd });
     state.inventory = data.inventory;
@@ -1250,12 +1412,17 @@ async function scanReceipt() {
   const fileInput = $("#receipt-file");
   const msg = $("#receipt-msg");
   const btn = $("#receipt-btn");
-  if (!fileInput.files.length) return;
+
+  const chosenFiles = (selectedPhotoFiles.receipt && selectedPhotoFiles.receipt.length)
+    ? selectedPhotoFiles.receipt
+    : Array.from(fileInput.files || []);
+
+  if (!chosenFiles.length) return;
   btn.disabled = true;
   setMsg(msg, "Reading receipt, decoding abbreviations, and updating inventory…");
   try {
     const fd = new FormData();
-    for (const f of fileInput.files) fd.append("files", f);
+    for (const f of chosenFiles) fd.append("files", f);
     const data = await api("/api/receipt/scan", { method: "POST", body: fd });
     handleReceiptResult(data, msg, "Receipt scanned!");
   } catch (e) {
@@ -1506,7 +1673,7 @@ function init() {
       state.scanLocation = btn.dataset.loc;
     });
   });
-  wirePhotoInput($("#scan-file"), $("#scan-file-name"), $("#scan-preview"), $("#scan-btn"));
+  wirePhotoInput($("#scan-file"), $("#scan-file-name"), $("#scan-preview"), $("#scan-btn"), "scan");
   $("#scan-btn").addEventListener("click", scanShelfPhoto);
 
   const modeOnHandBtn = $("#mode-onhand-btn");
@@ -1548,7 +1715,7 @@ function init() {
   $("#restock-btn").addEventListener("click", restock);
   $("#clear-purchased-btn").addEventListener("click", clearPurchased);
   $("#export-btn").addEventListener("click", exportList);
-  wirePhotoInput($("#receipt-file"), $("#receipt-file-name"), $("#receipt-preview"), $("#receipt-btn"));
+  wirePhotoInput($("#receipt-file"), $("#receipt-file-name"), $("#receipt-preview"), $("#receipt-btn"), "receipt");
   $("#receipt-btn").addEventListener("click", scanReceipt);
   const pdfInput = $("#receipt-pdf-file");
   pdfInput.addEventListener("change", () => {

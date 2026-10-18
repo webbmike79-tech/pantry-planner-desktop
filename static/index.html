@@ -88,6 +88,18 @@
   </div>
 </div>
 
+<!-- ===== Photo Source Chooser Modal (for Capacitor / native app) ===== -->
+<div id="photo-picker-modal" class="setup-overlay" hidden>
+  <div class="setup-card photo-picker-card">
+    <div class="setup-emoji">📷</div>
+    <h2 id="photo-picker-title">Add Photo</h2>
+    <p id="photo-picker-desc" class="hint">Choose how you want to add your photo:</p>
+    <button id="picker-camera-btn" class="btn btn-primary btn-big" type="button">📸 Take Photo</button>
+    <button id="picker-gallery-btn" class="btn btn-accent btn-big" type="button">🖼️ Choose from Gallery</button>
+    <button id="picker-cancel-btn" class="btn btn-ghost" type="button">Cancel</button>
+  </div>
+</div>
+
 <header class="app-header">
   <div class="header-top">
     <h1>🥘 Pantry Planner</h1>
@@ -317,6 +329,7 @@
 
 <div id="toast" role="status"></div>
 
+<script src="camera.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

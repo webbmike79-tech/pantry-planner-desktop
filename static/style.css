@@ -430,6 +430,12 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
 .setup-card p { line-height: 1.5; color: var(--text); }
 .setup-emoji { font-size: 2.6rem; }
 .setup-card .field-label { text-align: left; }
+.photo-picker-card {
+  max-width: 360px;
+}
+.photo-picker-card button {
+  margin-top: 12px;
+}
 
 /* ---------- Toast ---------- */
 #toast {
