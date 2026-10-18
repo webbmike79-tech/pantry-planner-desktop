@@ -154,6 +154,85 @@ class TestAIFallbackChain(unittest.TestCase):
         self.assertEqual(served_by, "groq")
         self.assertEqual(res.item_name, "Apples")
 
+    def test_configured_image_action_models_are_vision_capable(self):
+        """Assert configured models for image/vision actions are vision-capable models."""
+        from ai_fallback import (
+            GEMINI_DEFAULT_MODEL,
+            GROQ_DEFAULT_MODEL,
+            OPENROUTER_DEFAULT_MODEL,
+        )
+        self.assertEqual(GEMINI_DEFAULT_MODEL, "gemini-3.8-flash")
+        self.assertEqual(GROQ_DEFAULT_MODEL, "meta-llama/llama-4-scout-17b-16e-instruct")
+        self.assertTrue(
+            ":free" in OPENROUTER_DEFAULT_MODEL,
+            f"OpenRouter default model must be a :free model, got {OPENROUTER_DEFAULT_MODEL}",
+        )
+        # Ensure no text-only models are used as defaults
+        text_only = ["llama-3.1-8b", "llama-3.3-70b", "mistral", "hermes", "qwen/qwen-2.5-72b-instruct"]
+        for txt in text_only:
+            self.assertNotIn(txt, GROQ_DEFAULT_MODEL)
+            self.assertNotIn(txt, OPENROUTER_DEFAULT_MODEL)
+
+    @patch("ai_fallback._call_openai_compatible")
+    def test_unconfigured_provider_is_skipped(self, mock_openai):
+        """Unconfigured providers (None/empty key) must be skipped without errors."""
+        mock_openai.return_value = self.dummy_json
+        # Only Groq key configured, Gemini and OpenRouter unconfigured
+        keys_groq_only = ProviderKeys(gemini_key=None, groq_key="groq-test-key", openrouter_key=None)
+        res, served_by = generate_structured_with_fallback(
+            keys=keys_groq_only,
+            contents="test prompt",
+            schema=DummyResult,
+            temperature=0.1,
+            what="scan test item",
+        )
+        self.assertEqual(served_by, "groq")
+        self.assertEqual(res.item_name, "Apples")
+        mock_openai.assert_called_once()
+
+    def test_no_keys_configured_returns_plain_language_error(self):
+        """If no keys are configured anywhere, raise a friendly error without traceback."""
+        empty_keys = ProviderKeys(gemini_key=None, groq_key=None, openrouter_key=None)
+        with self.assertRaises(RuntimeError) as ctx:
+            generate_structured_with_fallback(
+                keys=empty_keys,
+                contents="test prompt",
+                schema=DummyResult,
+                temperature=0.1,
+                what="scan test item",
+            )
+        err = str(ctx.exception)
+        self.assertIn("No AI provider keys configured", err)
+        self.assertIn("Settings", err)
+
+    def test_server_config_persistence_across_restart(self):
+        """Verify keys persisted in config file survive restart and are read by extract_provider_keys."""
+        import tempfile
+        import os
+        import json
+
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as f:
+            json.dump({
+                "phone_access": True,
+                "access_code": "test-code",
+                "provider_keys": {
+                    "gemini": "persisted-gemini-key",
+                    "groq": "persisted-groq-key",
+                    "openrouter": "persisted-openr-key",
+                }
+            }, f)
+            cfg_path = f.name
+
+        try:
+            # Simulate a request from phone (no headers, no env vars)
+            keys = extract_provider_keys(headers={}, env={"PANTRY_CONFIG_FILE": cfg_path})
+            self.assertEqual(keys.gemini_key, "persisted-gemini-key")
+            self.assertEqual(keys.groq_key, "persisted-groq-key")
+            self.assertEqual(keys.openrouter_key, "persisted-openr-key")
+        finally:
+            if os.path.exists(cfg_path):
+                os.unlink(cfg_path)
+
     def test_extract_provider_keys(self):
         """Extract keys properly from headers or env."""
         headers = {

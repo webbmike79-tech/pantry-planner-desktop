@@ -1441,6 +1441,14 @@ def api_validate_provider(body: ValidateProviderRequest, request: Request):
     ok, msg = validate_provider_key(provider, key)
     if not ok:
         return {"ok": False, "error": msg}
+    try:
+        cfg = phone_access.load_config()
+        if "provider_keys" not in cfg or not isinstance(cfg["provider_keys"], dict):
+            cfg["provider_keys"] = {}
+        cfg["provider_keys"][provider] = key
+        phone_access.save_config(cfg)
+    except Exception:
+        pass
     return {"ok": True, "message": msg}
 
 
@@ -1455,6 +1463,14 @@ def api_validate_key(request: Request):
     ok, msg = validate_provider_key("gemini", api_key)
     if not ok:
         return {"ok": False, "error": f"That key didn't work — {msg}"}
+    try:
+        cfg = phone_access.load_config()
+        if "provider_keys" not in cfg or not isinstance(cfg["provider_keys"], dict):
+            cfg["provider_keys"] = {}
+        cfg["provider_keys"]["gemini"] = api_key
+        phone_access.save_config(cfg)
+    except Exception:
+        pass
     return {"ok": True, "message": "Key works! You're connected."}
 
 

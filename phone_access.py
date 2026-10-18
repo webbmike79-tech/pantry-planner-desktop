@@ -36,7 +36,11 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
-DEFAULT_CONFIG = {"phone_access": None, "access_code": ""}
+DEFAULT_CONFIG = {
+    "phone_access": None,
+    "access_code": "",
+    "provider_keys": {"gemini": "", "groq": "", "openrouter": ""},
+}
 
 # Visible ASCII only (no spaces): the code travels in an HTTP header, and
 # header values with other characters can be rejected by phone WebViews.
@@ -73,6 +77,13 @@ def load_config() -> dict:
         # Honour any non-empty stored code as-is (never fail open on odd edits).
         if isinstance(code, str):
             cfg["access_code"] = code
+        pk = data.get("provider_keys")
+        if isinstance(pk, dict):
+            cfg["provider_keys"] = {
+                "gemini": str(pk.get("gemini", "") or ""),
+                "groq": str(pk.get("groq", "") or ""),
+                "openrouter": str(pk.get("openrouter", "") or ""),
+            }
     return cfg
 
 
@@ -82,12 +93,15 @@ def save_config(cfg: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".cfg-", suffix=".tmp")
     try:
+        out = {
+            "phone_access": cfg.get("phone_access"),
+            "access_code": cfg.get("access_code", ""),
+        }
+        pk = cfg.get("provider_keys")
+        if isinstance(pk, dict) and any(pk.values()):
+            out["provider_keys"] = pk
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(
-                {"phone_access": cfg.get("phone_access"), "access_code": cfg.get("access_code", "")},
-                f,
-                indent=2,
-            )
+            json.dump(out, f, indent=2)
         os.replace(tmp, path)
     except Exception:
         try:

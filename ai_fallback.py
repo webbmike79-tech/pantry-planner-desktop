@@ -29,7 +29,7 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_DEFAULT_MODEL = "openrouter/free"
+OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"
 
 GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
 
@@ -46,28 +46,53 @@ def extract_provider_keys(
     headers: Any,
     env: Optional[Dict[str, str]] = None,
 ) -> ProviderKeys:
-    """Extract provider keys from HTTP request headers or environment variables."""
+    """Extract provider keys from HTTP request headers, environment variables, or config."""
     if env is None:
         env = os.environ
 
     get_header = getattr(headers, "get", lambda k, default="": default)
 
+    cfg_keys: Dict[str, str] = {}
+    cfg_file = env.get("PANTRY_CONFIG_FILE", "")
+    if not cfg_file:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            os.path.join(base_dir, "pantry_desktop_config.json"),
+            os.path.join(os.path.dirname(base_dir), "pantry_desktop_config.json"),
+            "pantry_desktop_config.json",
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                cfg_file = c
+                break
+    if cfg_file and os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    cfg_keys = data.get("provider_keys", {}) or {}
+        except Exception:
+            pass
+
     gemini = (
         get_header("x-gemini-key")
         or get_header("X-Gemini-Key")
         or env.get("GEMINI_API_KEY", "")
+        or cfg_keys.get("gemini", "")
     ).strip()
 
     groq = (
         get_header("x-groq-key")
         or get_header("X-Groq-Key")
         or env.get("GROQ_API_KEY", "")
+        or cfg_keys.get("groq", "")
     ).strip()
 
     openrouter = (
         get_header("x-openrouter-key")
         or get_header("X-OpenRouter-Key")
         or env.get("OPENROUTER_API_KEY", "")
+        or cfg_keys.get("openrouter", "")
     ).strip()
 
     return ProviderKeys(
