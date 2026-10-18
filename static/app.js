@@ -1162,6 +1162,7 @@ async function saveDiet() {
     toast("⚠️ Reconnect to Home Server to save settings.");
     return;
   }
+  const oldHeadcount = (state.settings && state.settings.base_headcount) || 2;
   const body = {
     base_headcount: parseInt($("#base-headcount").value, 10) || 1,
     dietary_tags: Array.from(document.querySelectorAll("#diet-tags input:checked")).map((cb) => cb.value),
@@ -1171,6 +1172,40 @@ async function saveDiet() {
   try {
     state.settings = await api("/api/settings", { method: "PUT", body });
     localStorage.setItem(CACHE_SETTINGS_STORAGE, JSON.stringify(state.settings));
+    const newHeadcount = (state.settings && state.settings.base_headcount) || body.base_headcount;
+
+    // Mid-week household change: refetch plan if present (server rescales non-overridden days and rebuilds shopping list)
+    if (state.plan) {
+      try {
+        const latest = await api("/api/plan/latest");
+        if (latest && latest.plan) {
+          state.planId = latest.plan_id;
+          state.planCreatedAt = latest.created_at;
+          state.plan = latest.plan;
+          localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify(latest));
+          renderMenu();
+          renderShopping();
+        }
+      } catch (pe) {
+        if (newHeadcount !== oldHeadcount) {
+          (state.plan.menu || []).forEach((d, idx) => {
+            if (!d.is_overridden && !d.servings_override) {
+              const oldS = d.servings != null ? d.servings : (d.headcount || oldHeadcount);
+              scalePlanDayLocally(state.plan, idx, oldS, newHeadcount);
+              d.servings = newHeadcount;
+              d.headcount = newHeadcount;
+            }
+          });
+          localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify({
+            plan_id: state.planId,
+            created_at: state.planCreatedAt,
+            plan: state.plan,
+          }));
+          renderMenu();
+          renderShopping();
+        }
+      }
+    }
     collectDailyHeadcounts();
     renderStatus();
     setMsg(msg, "✅ Household dietary preferences saved!", "ok");
@@ -1178,6 +1213,27 @@ async function saveDiet() {
   } catch (e) {
     setMsg(msg, e.message, "err");
   }
+}
+
+function applyHouseholdSizeChange(newHeadcount) {
+  if (!state.plan || !state.plan.menu || !newHeadcount) return;
+  const oldHeadcount = (state.settings && state.settings.base_headcount) || 2;
+  (state.plan.menu || []).forEach((d, idx) => {
+    if (!d.is_overridden && !d.servings_override) {
+      const oldS = d.servings != null ? d.servings : (d.headcount || oldHeadcount);
+      scalePlanDayLocally(state.plan, idx, oldS, newHeadcount);
+      d.servings = newHeadcount;
+      d.headcount = newHeadcount;
+    }
+  });
+  if (state.settings) state.settings.base_headcount = newHeadcount;
+  localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify({
+    plan_id: state.planId,
+    created_at: state.planCreatedAt,
+    plan: state.plan,
+  }));
+  renderMenu();
+  renderShopping();
 }
 
 /* ---------------- Server Settings (Tab 2) ---------------- */
@@ -1351,6 +1407,184 @@ function mealBlock(emoji, label, slotKey, meal, dayIdx, isCooked) {
 }
 
 
+/* ---------- Per-day servings helpers & scaling ---------- */
+
+const COUNTABLE_UNITS = new Set([
+  "can", "cans",
+  "clove", "cloves",
+  "egg", "eggs",
+  "count", "item", "items", "piece", "pieces",
+  "bottle", "bottles",
+  "box", "boxes",
+  "bag", "bags",
+  "head", "heads",
+  "loaf", "loaves",
+  "packet", "packets", "pack", "packs",
+  "stalk", "stalks",
+  "bunch", "bunches"
+]);
+
+function isCountableUnit(unit) {
+  if (!unit) return false;
+  return COUNTABLE_UNITS.has(String(unit).trim().toLowerCase());
+}
+
+function roundScaledQuantity(val, unit) {
+  if (val <= 0) return 0.0;
+  if (isCountableUnit(unit)) {
+    return Math.max(1.0, Math.ceil(val));
+  }
+  const rounded = Math.round(val * 4.0) / 4.0;
+  return rounded > 0 ? rounded : 0.25;
+}
+
+function scaleAmountNeededStr(amountNeeded, ratio, unit) {
+  if (!amountNeeded || typeof amountNeeded !== "string") return amountNeeded;
+  const trimmed = amountNeeded.trim();
+  const m = trimmed.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+  if (!m) return amountNeeded;
+  const oldNum = parseFloat(m[1]);
+  if (isNaN(oldNum)) return amountNeeded;
+  const rest = m[2];
+  const newNum = roundScaledQuantity(oldNum * ratio, unit);
+  const numStr = Number.isInteger(newNum) ? String(newNum) : String(newNum);
+  return rest ? `${numStr} ${rest}`.trim() : numStr;
+}
+
+function scalePlanDayLocally(plan, dayNameOrIdx, oldServings, newServings) {
+  if (!plan || !oldServings || !newServings || oldServings === newServings) return plan;
+  const ratio = newServings / oldServings;
+  let targetDay = null;
+  let dClean = "";
+  if (typeof dayNameOrIdx === "number") {
+    targetDay = (plan.menu || [])[dayNameOrIdx];
+    if (targetDay) dClean = (targetDay.day || "").toLowerCase().trim();
+  } else {
+    dClean = String(dayNameOrIdx || "").toLowerCase().trim();
+    targetDay = (plan.menu || []).find((d) => (d.day || "").toLowerCase().trim() === dClean);
+  }
+  if (!targetDay) return plan;
+
+  // 1. Rescale ingredients_to_deduct for this day
+  for (const ing of targetDay.ingredients_to_deduct || []) {
+    const amt = parseFloat(ing.amount_used || 0.0);
+    const u = ing.unit || "";
+    ing.amount_used = roundScaledQuantity(amt * ratio, u);
+  }
+
+  // 2. Rescale matching shopping list items
+  const allDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  for (const item of plan.shopping_list || []) {
+    const reason = (item.reason || "").toLowerCase();
+    const itemDay = (item.day || "").toLowerCase().trim();
+    let belongs = false;
+    if (itemDay === dClean) {
+      belongs = true;
+    } else if (dClean && reason.includes(dClean)) {
+      const otherDays = allDays.filter((o) => o !== dClean && reason.includes(o));
+      if (otherDays.length === 0) belongs = true;
+    }
+    if (belongs) {
+      const numQty = parseFloat(item.numeric_quantity || 0.0);
+      const u = item.unit || "";
+      item.numeric_quantity = roundScaledQuantity(numQty * ratio, u);
+      item.amount_needed = scaleAmountNeededStr(item.amount_needed || "", ratio, u);
+    }
+  }
+  return plan;
+}
+
+async function changeDayServings(dayIndex, newServings) {
+  if (!state.plan || !state.plan.menu || !state.plan.menu[dayIndex]) return;
+  const day = state.plan.menu[dayIndex];
+  const oldServings = day.servings != null ? day.servings : (day.headcount || (state.settings && state.settings.base_headcount) || 2);
+  const targetServings = Math.max(1, Math.min(12, parseInt(newServings, 10) || 1));
+  if (targetServings === oldServings && (day.is_overridden || day.servings_override)) return;
+
+  if (isOnline()) {
+    try {
+      const res = await api("/api/plan/day-servings", {
+        method: "POST",
+        body: { day_index: dayIndex, day: day.day, servings: targetServings, reset: false },
+      });
+      if (res && res.plan) {
+        state.plan = res.plan;
+        localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify({
+          plan_id: state.planId,
+          created_at: state.planCreatedAt,
+          plan: state.plan,
+        }));
+        renderMenu();
+        renderShopping();
+        toast(`${day.day} set to ${targetServings} servings`);
+        return;
+      }
+    } catch (e) {
+      console.warn("Server day-servings update failed, falling back to local:", e);
+    }
+  }
+
+  // Standalone / offline fallback
+  scalePlanDayLocally(state.plan, dayIndex, oldServings, targetServings);
+  day.servings = targetServings;
+  day.headcount = targetServings;
+  day.is_overridden = true;
+  day.servings_override = true;
+  localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify({
+    plan_id: state.planId,
+    created_at: state.planCreatedAt,
+    plan: state.plan,
+  }));
+  renderMenu();
+  renderShopping();
+  toast(`${day.day} set to ${targetServings} servings`);
+}
+
+async function resetDayServings(dayIndex) {
+  if (!state.plan || !state.plan.menu || !state.plan.menu[dayIndex]) return;
+  const day = state.plan.menu[dayIndex];
+  const hh = (state.settings && state.settings.base_headcount) || 2;
+  const oldServings = day.servings != null ? day.servings : (day.headcount || hh);
+
+  if (isOnline()) {
+    try {
+      const res = await api("/api/plan/day-servings", {
+        method: "POST",
+        body: { day_index: dayIndex, day: day.day, reset: true },
+      });
+      if (res && res.plan) {
+        state.plan = res.plan;
+        localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify({
+          plan_id: state.planId,
+          created_at: state.planCreatedAt,
+          plan: state.plan,
+        }));
+        renderMenu();
+        renderShopping();
+        toast(`${day.day} reset to household size (${hh})`);
+        return;
+      }
+    } catch (e) {
+      console.warn("Server reset day-servings failed, falling back to local:", e);
+    }
+  }
+
+  // Standalone / offline fallback
+  scalePlanDayLocally(state.plan, dayIndex, oldServings, hh);
+  day.servings = hh;
+  day.headcount = hh;
+  day.is_overridden = false;
+  day.servings_override = false;
+  localStorage.setItem(CACHE_PLAN_STORAGE, JSON.stringify({
+    plan_id: state.planId,
+    created_at: state.planCreatedAt,
+    plan: state.plan,
+  }));
+  renderMenu();
+  renderShopping();
+  toast(`${day.day} reset to household size (${hh})`);
+}
+
 function renderMenu() {
   const wrap = $("#menu-days");
   wrap.innerHTML = "";
@@ -1368,14 +1602,44 @@ function renderMenu() {
   }
   if (!has) { renderStatus(); return; }
 
+  const hh = (state.settings && state.settings.base_headcount) || 2;
   state.plan.menu.forEach((day, idx) => {
+    // Migration for pre-feature saved plans
+    if (day.servings === undefined || day.servings === null) {
+      day.servings = day.headcount || hh;
+    }
+    if (day.is_overridden === undefined) {
+      day.is_overridden = false;
+    }
+    if (day.servings_override === undefined) {
+      day.servings_override = false;
+    }
+    const servings = day.servings;
+    const isOverridden = !!(day.is_overridden || day.servings_override);
+
     const card = document.createElement("div");
     card.className = "day-card" + (day.cooked ? " cooked" : "");
     const deduct = (day.ingredients_to_deduct || [])
       .map((d) => `${esc(d.item_name)} (${d.amount_used} ${esc(d.unit)})`).join(", ");
+
+    const servesText = isOverridden ? `Serves ${servings} · custom` : `Serves: ${servings}`;
+    const resetHtml = isOverridden ? `<button type="button" class="btn-link servings-reset-btn" data-day="${idx}">Reset to household</button>` : "";
+
     card.innerHTML = `
-      <div class="day-head"><h3>${esc(day.day)} — Feeding ${day.headcount} People</h3>
-      <span class="badge ${day.cooked ? "done" : "planned"}">${day.cooked ? "✅ COOKED" : "⏳ PLANNED"}</span></div>
+      <div class="day-head">
+        <div class="day-title-row">
+          <h3>${esc(day.day)}</h3>
+          <span class="badge ${day.cooked ? "done" : "planned"}">${day.cooked ? "✅ COOKED" : "⏳ PLANNED"}</span>
+        </div>
+        <div class="day-servings-bar">
+          <span class="servings-display">${servesText}</span>
+          <div class="servings-stepper-btns">
+            <button type="button" class="servings-step-btn servings-minus" data-day="${idx}" aria-label="Decrease servings" ${servings <= 1 ? "disabled" : ""}>−</button>
+            <button type="button" class="servings-step-btn servings-plus" data-day="${idx}" aria-label="Increase servings" ${servings >= 12 ? "disabled" : ""}>+</button>
+          </div>
+          ${resetHtml}
+        </div>
+      </div>
       ${mealBlock("🌅", "Breakfast", "breakfast", day.breakfast, idx, day.cooked)}
       ${mealBlock("☀️", "Lunch", "lunch", day.lunch, idx, day.cooked)}
       ${mealBlock("🌙", "Dinner", "dinner", day.dinner, idx, day.cooked)}
@@ -1383,15 +1647,44 @@ function renderMenu() {
       <button class="btn ${day.cooked ? "" : "btn-primary"} cook-btn" ${day.cooked ? "disabled" : ""}>
         ${day.cooked ? `✅ ${esc(day.day)} Cooked &amp; Deducted` : `🍳 Cooked ${esc(day.day)}'s Meals — Subtract from Inventory`}
       </button>`;
+
     const btn = card.querySelector(".cook-btn");
-    if (!day.cooked) btn.addEventListener("click", () => cookDay(idx));
+    if (!day.cooked && btn) {
+      btn.onclick = () => cookDay(idx);
+      btn.addEventListener("click", btn.onclick);
+    }
+
+    const minusBtn = card.querySelector(".servings-minus");
+    if (minusBtn) {
+      minusBtn.onclick = () => {
+        const curr = day.servings != null ? day.servings : (day.headcount || hh);
+        if (curr > 1) changeDayServings(idx, curr - 1);
+      };
+      minusBtn.addEventListener("click", minusBtn.onclick);
+    }
+
+    const plusBtn = card.querySelector(".servings-plus");
+    if (plusBtn) {
+      plusBtn.onclick = () => {
+        const curr = day.servings != null ? day.servings : (day.headcount || hh);
+        if (curr < 12) changeDayServings(idx, curr + 1);
+      };
+      plusBtn.addEventListener("click", plusBtn.onclick);
+    }
+
+    const resetBtn = card.querySelector(".servings-reset-btn");
+    if (resetBtn) {
+      resetBtn.onclick = () => resetDayServings(idx);
+      resetBtn.addEventListener("click", resetBtn.onclick);
+    }
 
     card.querySelectorAll(".swap-meal-btn").forEach((sBtn) => {
-      sBtn.addEventListener("click", () => {
+      sBtn.onclick = () => {
         const dIdx = parseInt(sBtn.dataset.day, 10);
         const sSlot = sBtn.dataset.slot;
         swapMeal(dIdx, sSlot, sBtn);
-      });
+      };
+      sBtn.addEventListener("click", sBtn.onclick);
     });
 
     wrap.appendChild(card);

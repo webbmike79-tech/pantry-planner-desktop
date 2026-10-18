@@ -136,6 +136,15 @@ class MealDetail(BaseModel):
 class DayMealPlan(BaseModel):
     day: str = Field(description="Day of the week (e.g., Monday)")
     headcount: int = Field(description="Number of people being fed this day")
+    servings: Optional[int] = Field(
+        default=None, description="Servings for this day (defaults to headcount / household size)"
+    )
+    is_overridden: bool = Field(
+        default=False, description="Whether this day's servings was manually overridden"
+    )
+    servings_override: bool = Field(
+        default=False, description="Alias for is_overridden"
+    )
     breakfast: MealDetail
     lunch: MealDetail
     dinner: MealDetail
@@ -339,6 +348,93 @@ def replace_inventory_from_df(df: pd.DataFrame, household: Optional[str] = None)
     conn.commit()
     conn.close()
 
+
+# ==========================================
+# PER-DAY SERVINGS RESCALING LOGIC (Part 2 Rule 5)
+# ==========================================
+
+import math
+
+COUNTABLE_UNITS = {
+    "count", "item", "items", "can", "cans", "clove", "cloves", "egg", "eggs",
+    "bottle", "bottles", "box", "boxes", "bag", "bags", "jar", "jars",
+    "package", "packages", "pack", "packs", "piece", "pieces", "head", "heads",
+    "bunch", "bunches", "stalk", "stalks", "slice", "slices", "loaf", "loaves",
+    "ear", "ears", "pinch", "dash", "packet", "packets", ""
+}
+
+
+def is_countable_unit(unit: Optional[str]) -> bool:
+    if not unit:
+        return True
+    return unit.lower().strip() in COUNTABLE_UNITS
+
+
+def round_scaled_quantity(val: float, unit: Optional[str]) -> float:
+    """Rounding rule (Part 2 Rule 5):
+    - fractional measures round to nearest 0.25;
+    - countable whole items (eggs, cans, cloves — units that are whole things) round UP to the next whole number;
+    - a quantity never drops below 1 whole countable item.
+    """
+    if is_countable_unit(unit):
+        return float(max(1, math.ceil(val)))
+    else:
+        rounded = round(val * 4.0) / 4.0
+        if val > 0 and rounded == 0.0:
+            rounded = 0.25
+        return rounded
+
+
+def scale_amount_needed_str(amount_needed: str, ratio: float, unit: Optional[str]) -> str:
+    """Scales leading number in amount_needed string if parseable.
+    If any ingredient quantity is free text with no parseable number, leave its text unchanged.
+    """
+    if not amount_needed:
+        return amount_needed
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*(.*)$", amount_needed.strip())
+    if not m:
+        return amount_needed
+    old_num = float(m.group(1))
+    rest = m.group(2)
+    new_num = round_scaled_quantity(old_num * ratio, unit)
+    num_str = str(int(new_num)) if new_num.is_integer() else str(new_num)
+    return f"{num_str} {rest}".strip() if rest else num_str
+
+
+def scale_day_ingredients_and_shopping(plan: dict, day_name: str, old_servings: int, new_servings: int):
+    """Rescales a single day's ingredient deductions and matching shopping list items by new ÷ old."""
+    if old_servings <= 0 or new_servings <= 0 or old_servings == new_servings:
+        return
+    ratio = float(new_servings) / float(old_servings)
+    d_clean = (day_name or "").lower().strip()
+
+    # 1. Rescale ingredients_to_deduct on that day
+    for d in plan.get("menu", []):
+        if (d.get("day") or "").lower().strip() == d_clean:
+            for ing in d.get("ingredients_to_deduct", []):
+                amt = float(ing.get("amount_used", 0.0))
+                u = ing.get("unit", "")
+                ing["amount_used"] = round_scaled_quantity(amt * ratio, u)
+            break
+
+    # 2. Rescale shopping list items that belong to that day
+    all_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    for item in plan.get("shopping_list", []):
+        reason = (item.get("reason") or "").lower()
+        item_day = (item.get("day") or "").lower().strip()
+        belongs = False
+        if item_day == d_clean:
+            belongs = True
+        elif d_clean in reason:
+            other_days = [o for o in all_days if o != d_clean and o in reason]
+            if not other_days:
+                belongs = True
+
+        if belongs:
+            num_qty = float(item.get("numeric_quantity", 0.0))
+            u = item.get("unit", "")
+            item["numeric_quantity"] = round_scaled_quantity(num_qty * ratio, u)
+            item["amount_needed"] = scale_amount_needed_str(item.get("amount_needed", ""), ratio, u)
 
 
 def deduct_day_from_inventory(plan_id: int, day_idx: int, household: Optional[str] = None) -> List[str]:
@@ -644,12 +740,36 @@ def save_settings(
     conn.commit()
     conn.close()
 
+    # Rule 3: Mid-week household change updates all non-overridden days of current saved plan
+    plan_id, _created_at, plan = get_latest_plan(household)
+    if plan and isinstance(plan, dict) and "menu" in plan:
+        plan_modified = False
+        for d in plan.get("menu", []):
+            if not d.get("is_overridden", False):
+                old_s = d.get("servings") or d.get("headcount")
+                if old_s and old_s != base_headcount:
+                    scale_day_ingredients_and_shopping(plan, d.get("day", ""), old_s, base_headcount)
+                    d["servings"] = base_headcount
+                    d["headcount"] = base_headcount
+                    plan_modified = True
+        if plan_modified:
+            update_saved_plan(plan_id, plan, household)
+
 
 def save_plan(plan_dict: dict, household: Optional[str] = None) -> Optional[int]:
     _, _, plan_tbl = db.get_table_names(household)
     db.init_db(household)
     conn = db.get_db_connection()
     c = conn.cursor()
+    if isinstance(plan_dict, dict) and "menu" in plan_dict and isinstance(plan_dict["menu"], list):
+        for day in plan_dict["menu"]:
+            if isinstance(day, dict):
+                if day.get("servings") is None:
+                    day["servings"] = day.get("headcount", 2)
+                day["headcount"] = day["servings"]
+                if "is_overridden" not in day:
+                    day["is_overridden"] = False
+                day["servings_override"] = day["is_overridden"]
     c.execute(
         f"INSERT INTO {plan_tbl} (created_at, plan_json) VALUES (?, ?)",
         (datetime.now().strftime("%Y-%m-%d %H:%M"), json.dumps(plan_dict)),
@@ -669,7 +789,26 @@ def get_latest_plan(household: Optional[str] = None):
     row = c.fetchone()
     conn.close()
     if row:
-        return row[0], row[1], json.loads(row[2])
+        plan_id = row[0]
+        created_at = row[1]
+        plan = json.loads(row[2])
+        if isinstance(plan, dict) and "menu" in plan and isinstance(plan["menu"], list):
+            settings_size = None
+            for day in plan["menu"]:
+                if isinstance(day, dict):
+                    if "servings" not in day or day.get("servings") is None:
+                        if settings_size is None:
+                            try:
+                                s = get_settings(household)
+                                settings_size = s.get("base_headcount", 2)
+                            except Exception:
+                                settings_size = 2
+                        day["servings"] = day.get("headcount") or settings_size
+                    if "is_overridden" not in day:
+                        day["is_overridden"] = False
+                    day["headcount"] = day["servings"]
+                    day["servings_override"] = day["is_overridden"]
+        return plan_id, created_at, plan
     return None, None, None
 
 
@@ -997,6 +1136,13 @@ class SwapMealRequest(BaseModel):
     meal_slot: str  # 'breakfast', 'lunch', or 'dinner'
 
 
+class DayServingsRequest(BaseModel):
+    day_index: Optional[int] = None
+    day: Optional[str] = None
+    servings: Optional[int] = None
+    reset: bool = False
+
+
 class RestockRequest(BaseModel):
     indices: List[int] = []
 
@@ -1174,16 +1320,26 @@ async def api_scan_photo(
 def api_generate_plan(body: GeneratePlanRequest, request: Request):
     keys = require_ai_keys(request)
     settings = get_settings()
+    household_size = settings.get("base_headcount", 2)
+    days_list = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    # Part 2 Rule 1 & 4: Fresh weekly generation starts all 7 days at current household size with no overrides
+    daily_headcounts = {d: household_size for d in days_list}
     theme = body.theme_name or get_auto_theme_name()
     plan_output, served_by = ai_call(
         generate_weekly_menu_and_list,
         keys,
         get_inventory_df(),
         settings,
-        body.daily_headcounts,
+        daily_headcounts,
         theme,
     )
-    save_plan(plan_output.model_dump())
+    plan_dict = plan_output.model_dump()
+    for d in plan_dict.get("menu", []):
+        d["servings"] = household_size
+        d["headcount"] = household_size
+        d["is_overridden"] = False
+        d["servings_override"] = False
+    save_plan(plan_dict)
     payload = latest_plan_payload()
     payload["served_by"] = served_by
     return payload
@@ -1198,6 +1354,53 @@ def api_latest_plan():
 def api_clear_plan():
     """Clear the active menu plan and derived shopping list without touching inventory or settings."""
     clear_saved_plans()
+    return latest_plan_payload()
+
+
+@app.post("/api/plan/day-servings")
+@app.post("/api/plan/servings")
+def api_update_day_servings(body: DayServingsRequest):
+    """Update or reset a single day's servings for the current week's plan (Part 2 Rule 2 & 5)."""
+    plan_id, _created_at, plan = get_latest_plan()
+    if plan_id is None or plan is None:
+        raise HTTPException(status_code=404, detail="No plan generated yet.")
+    menu = plan.get("menu", [])
+    target_idx = None
+    if body.day_index is not None and 0 <= body.day_index < len(menu):
+        target_idx = body.day_index
+    elif body.day:
+        for idx, d in enumerate(menu):
+            if d.get("day", "").lower().strip() == body.day.lower().strip():
+                target_idx = idx
+                break
+    if target_idx is None:
+        raise HTTPException(status_code=400, detail="Invalid day or day_index.")
+
+    day_obj = menu[target_idx]
+    settings = get_settings()
+    household_size = settings.get("base_headcount", 2)
+    old_servings = day_obj.get("servings") or day_obj.get("headcount") or household_size
+
+    if body.reset:
+        new_servings = household_size
+        is_overridden = False
+    else:
+        if body.servings is None:
+            raise HTTPException(status_code=400, detail="Servings must be specified unless reset is True.")
+        if body.servings < 1 or body.servings > 12:
+            raise HTTPException(status_code=400, detail="Servings must be between 1 and 12.")
+        new_servings = body.servings
+        is_overridden = True
+
+    if new_servings != old_servings:
+        scale_day_ingredients_and_shopping(plan, day_obj.get("day", ""), old_servings, new_servings)
+
+    day_obj["servings"] = new_servings
+    day_obj["headcount"] = new_servings
+    day_obj["is_overridden"] = is_overridden
+    day_obj["servings_override"] = is_overridden
+
+    update_saved_plan(plan_id, plan)
     return latest_plan_payload()
 
 
@@ -1244,8 +1447,8 @@ def api_swap_meal(body: SwapMealRequest, request: Request):
         raise HTTPException(status_code=400, detail=f"No meal found in {day_obj.get('day')} {slot}")
 
     current_dish_name = current_meal.get("dish_name", "")
-    headcount = day_obj.get("headcount", 2)
     settings = get_settings()
+    headcount = day_obj.get("servings") or day_obj.get("headcount") or settings.get("base_headcount", 2)
 
     # 1. Collect all other meals planned across the week to avoid duplicates
     other_meals = []

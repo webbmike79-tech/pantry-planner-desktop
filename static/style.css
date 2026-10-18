@@ -352,8 +352,38 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
   border-radius: var(--radius); padding: 14px; margin-bottom: 12px;
 }
 .day-card.cooked { opacity: 0.75; }
-.day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.day-head { display: flex; flex-direction: column; gap: 6px; }
+.day-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .day-head h3 { margin: 0; font-size: 1.05rem; }
+.day-servings-bar { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; flex-wrap: wrap; }
+.servings-display { font-weight: 600; color: var(--text); }
+.servings-stepper-btns { display: inline-flex; gap: 4px; }
+.servings-step-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.servings-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.servings-reset-btn {
+  background: none;
+  border: none;
+  color: var(--accent-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+}
+.servings-reset-btn:hover { color: var(--accent); }
 .badge { font-size: 0.8rem; font-weight: 700; }
 .badge.planned { color: var(--accent-soft); }
 .badge.done { color: #7ee2a0; }
