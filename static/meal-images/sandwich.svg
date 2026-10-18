@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="burgerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b1f0b"/>
+      <stop offset="50%" stop-color="#703610"/>
+      <stop offset="100%" stop-color="#c96d24"/>
+    </linearGradient>
+    <linearGradient id="bunGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f6b864"/>
+      <stop offset="100%" stop-color="#b86b1b"/>
+    </linearGradient>
+    <linearGradient id="pattyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4e210e"/>
+      <stop offset="100%" stop-color="#2d1207"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="200" fill="url(#burgerBg)"/>
+  <!-- Shadow -->
+  <ellipse cx="200" cy="168" rx="80" ry="16" fill="#000000" opacity="0.35"/>
+  <!-- Bottom Bun -->
+  <path d="M140,152 C140,165 260,165 260,152 Z" fill="url(#bunGrad)"/>
+  <!-- Burger Patty -->
+  <rect x="135" y="142" width="130" height="12" rx="5" fill="url(#pattyGrad)"/>
+  <!-- Melted Cheddar Cheese -->
+  <path d="M132,143 L268,143 L260,147 L215,152 L175,147 L140,150 Z" fill="#fab005"/>
+  <!-- Sliced Tomato -->
+  <rect x="138" y="135" width="124" height="8" rx="3" fill="#e03131"/>
+  <!-- Crispy Wavy Lettuce -->
+  <path d="M130,135 Q145,130 160,135 Q175,130 190,135 Q205,130 220,135 Q235,130 250,135 Q265,130 270,135" fill="none" stroke="#51cf66" stroke-width="5" stroke-linecap="round"/>
+  <!-- Top Sesame Bun -->
+  <path d="M136,132 C136,88 264,88 264,132 Z" fill="url(#bunGrad)"/>
+  <!-- Sesame Seeds -->
+  <circle cx="170" cy="105" r="2" fill="#fff9db"/>
+  <circle cx="190" cy="98" r="2" fill="#fff9db"/>
+  <circle cx="210" cy="100" r="2" fill="#fff9db"/>
+  <circle cx="230" cy="106" r="2" fill="#fff9db"/>
+  <circle cx="180" cy="115" r="2" fill="#fff9db"/>
+  <circle cx="200" cy="112" r="2" fill="#fff9db"/>
+  <circle cx="220" cy="116" r="2" fill="#fff9db"/>
+  <text x="20" y="38" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="bold" opacity="0.9" letter-spacing="1">🍔 BURGERS &amp; SANDWICHES</text>
+</svg>

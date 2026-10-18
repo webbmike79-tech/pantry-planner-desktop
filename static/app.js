@@ -966,6 +966,66 @@ async function saveServerSettings() {
 
 /* ---------------- Menu (Tab 3) ---------------- */
 
+function getMealImageCategory(meal) {
+  if (!meal) return "default";
+  const name = (meal.dish_name || "").toLowerCase();
+  const desc = (meal.prep_steps || []).join(" ").toLowerCase();
+  const fullText = `${name} ${desc}`;
+
+  // Burger / Sandwich / Wrap
+  if (/\b(burger|burgers|cheeseburger|sandwich|sandwiches|slider|sliders|panini|wrap|wraps|melt|sub|subs)\b/.test(fullText)) {
+    return "sandwich";
+  }
+
+  // Tacos / Mexican
+  if (/\b(taco|tacos|fajita|fajitas|enchilada|enchiladas|quesadilla|quesadillas|burrito|burritos|salsa|tex-mex|mexican|tortilla|carnitas)\b/.test(fullText)) {
+    return "tacos";
+  }
+
+  // Pasta / Italian
+  if (/\b(pasta|spaghetti|lasagna|penne|fettuccine|linguine|macaroni|risotto|marinara|bolognese|carbonara|alfredo|gnocchi|ravioli|italian|pizza)\b/.test(fullText)) {
+    return "pasta";
+  }
+
+  // Stir-fry / Asian
+  if (/\b(stir-fry|stir fry|wok|teriyaki|curry|fried rice|ramen|noodle|noodles|pad thai|lo mein|asian|ginger soy)\b/.test(fullText)) {
+    return "stir-fry";
+  }
+
+  // Seafood / Fish
+  if (/\b(salmon|tuna|shrimp|fish|cod|tilapia|halibut|trout|crab|lobster|seafood|scallop|mahi)\b/.test(fullText)) {
+    return "seafood";
+  }
+
+  // Soup / Stew / Chili
+  if (/\b(soup|stew|chili|broth|bisque|chowder|gumbo)\b/.test(fullText)) {
+    return "soup";
+  }
+
+  // Salad / Greens
+  if (/\b(salad|slaw|greens|kale|caesar|vinaigrette)\b/.test(fullText)) {
+    return "salad";
+  }
+
+  // Breakfast keywords
+  if (/\b(breakfast|pancake|pancakes|waffle|waffles|oatmeal|scramble|scrambled|omelet|omelette|egg|eggs|bacon|frittata|french toast|hash brown|hashbrown)\b/.test(fullText)) {
+    return "breakfast";
+  }
+
+  // Roast chicken / Poultry
+  if (/\b(roast chicken|roasted chicken|baked chicken|grilled chicken|chicken breast|chicken thigh|drumstick|poultry|turkey|chicken)\b/.test(fullText)) {
+    return "roast-chicken";
+  }
+
+  return "default";
+}
+
+
+function getMealImageUrl(meal) {
+  const cat = getMealImageCategory(meal);
+  return `meal-images/${cat}.svg`;
+}
+
 function mealBlock(emoji, label, slotKey, meal, dayIdx, isCooked) {
   if (!meal) return "";
   const steps = (meal.prep_steps || []).map((s) => `<li>${esc(s)}</li>`).join("");
@@ -976,16 +1036,31 @@ function mealBlock(emoji, label, slotKey, meal, dayIdx, isCooked) {
     ? `<button class="swap-meal-btn" data-day="${dayIdx}" data-slot="${slotKey}" title="Change this meal">🔄 Change this meal</button>`
     : "";
 
+  const category = getMealImageCategory(meal);
+  const imageUrl = getMealImageUrl(meal);
+  const initial = ((meal.dish_name || "").trim().charAt(0) || "🥘").toUpperCase();
+
   return `<div class="meal">
-    <div class="meal-header">
-      <h4>${emoji} ${label}: ${esc(meal.dish_name || "")}</h4>
-      ${swapBtn}
+    <div class="meal-banner">
+      <img class="meal-img" src="${imageUrl}" alt="${esc(meal.dish_name || "")}" data-category="${category}"
+           onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+      <div class="meal-image-placeholder" style="display: none;" data-initial="${esc(initial)}">
+        <span class="placeholder-initial">${esc(initial)}</span>
+        <span class="placeholder-title">${esc(meal.dish_name || "")}</span>
+      </div>
     </div>
-    ${changedNote}
-    <span class="cook-time">⏱️ Cook Time: ${meal.cook_time_minutes ?? ""} mins</span>
-    <details><summary>Recipe steps</summary><ol>${steps}</ol></details>
+    <div class="meal-content">
+      <div class="meal-header">
+        <h4>${emoji} ${label}: ${esc(meal.dish_name || "")}</h4>
+        ${swapBtn}
+      </div>
+      ${changedNote}
+      <span class="cook-time">⏱️ Cook Time: ${meal.cook_time_minutes ?? ""} mins</span>
+      <details><summary>Recipe steps</summary><ol>${steps}</ol></details>
+    </div>
   </div>`;
 }
+
 
 function renderMenu() {
   const wrap = $("#menu-days");
