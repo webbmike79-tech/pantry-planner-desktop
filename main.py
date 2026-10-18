@@ -981,14 +981,14 @@ class ReceiptPasteRequest(BaseModel):
 
 
 def require_ai_keys(request: Request) -> ProviderKeys:
-    """Extract AI keys: Gemini, Groq, OpenRouter from headers or env vars."""
+    """Extract AI keys: Gemini, Groq, OpenRouter from headers or config."""
     keys = extract_provider_keys(request.headers)
     if not (keys.gemini_key or keys.groq_key or keys.openrouter_key):
         raise HTTPException(
             status_code=400,
             detail=(
-                "No AI API key available. Enter your Gemini API key (or Groq/OpenRouter key) in the app "
-                "(Diet tab) or set the GEMINI_API_KEY environment variable."
+                "No AI API key configured on the server. Please enter your Gemini API key "
+                "(or Groq/OpenRouter fallback key) in Settings."
             ),
         )
     return keys
