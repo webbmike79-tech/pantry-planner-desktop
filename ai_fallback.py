@@ -75,23 +75,23 @@ def extract_provider_keys(
             pass
 
     gemini = (
-        get_header("x-gemini-key")
+        env.get("GEMINI_API_KEY", "")
+        or get_header("x-gemini-key")
         or get_header("X-Gemini-Key")
-        or env.get("GEMINI_API_KEY", "")
         or cfg_keys.get("gemini", "")
     ).strip()
 
     groq = (
-        get_header("x-groq-key")
+        env.get("GROQ_API_KEY", "")
+        or get_header("x-groq-key")
         or get_header("X-Groq-Key")
-        or env.get("GROQ_API_KEY", "")
         or cfg_keys.get("groq", "")
     ).strip()
 
     openrouter = (
-        get_header("x-openrouter-key")
+        env.get("OPENROUTER_API_KEY", "")
+        or get_header("x-openrouter-key")
         or get_header("X-OpenRouter-Key")
-        or env.get("OPENROUTER_API_KEY", "")
         or cfg_keys.get("openrouter", "")
     ).strip()
 

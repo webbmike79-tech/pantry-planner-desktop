@@ -172,7 +172,8 @@ var capacitorCamera = (function (exports, core) {
         CameraErrorCode["GeneralError"] = "OS-PLUG-CAMR-0026";
     })(exports.CameraErrorCode || (exports.CameraErrorCode = {}));
 
-    class CameraWeb extends core.WebPlugin {
+    const WebPluginBase = (core && core.WebPlugin) ? core.WebPlugin : class WebPlugin {};
+    class CameraWeb extends WebPluginBase {
         async takePhoto(options) {
             // eslint-disable-next-line no-async-promise-executor
             return new Promise(async (resolve, reject) => {
@@ -677,15 +678,19 @@ var capacitorCamera = (function (exports, core) {
             throw this.unavailable('Not implemented on web.');
         }
     }
-    new CameraWeb();
-
-    const Camera = core.registerPlugin('Camera', {
-        web: () => new CameraWeb(),
-    });
+    let Camera;
+    try {
+        Camera = (core && typeof core.registerPlugin === 'function')
+            ? core.registerPlugin('Camera', { web: () => new CameraWeb() })
+            : ((core && core.Plugins && core.Plugins.Camera) || (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) || new CameraWeb());
+    } catch (_e) {
+        Camera = (core && core.Plugins && core.Plugins.Camera) || (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) || new CameraWeb();
+    }
 
     exports.Camera = Camera;
 
     return exports;
 
-})({}, capacitorExports);
+})({}, typeof capacitorExports !== 'undefined' ? capacitorExports : (typeof Capacitor !== 'undefined' ? Capacitor : {}));
+
 //# sourceMappingURL=plugin.js.map

@@ -271,45 +271,51 @@
       </div>
     </div>
 
-    <h2>🔑 Gemini API Key</h2>
-    <div class="card">
-      <p class="hint">When connected to your Home Server, all AI requests use the server's configured keys automatically.
-        This field applies when running in standalone offline mode. Your key is stored <b>only on this device</b> and is never logged.
-        Need a key? <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get one free here</a> — no credit card.</p>
-      <label class="field-label" for="settings-key-input">Gemini API Key (Standalone Mode)</label>
-      <input id="settings-key-input" type="password" placeholder="Paste a Gemini API key"
-             autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button id="settings-key-btn" class="btn btn-primary">Save &amp; Connect</button>
-      <p class="form-msg" id="settings-key-msg" role="status"></p>
+    <div id="connected-keys-notice" class="card" hidden>
+      <p class="hint" style="margin: 0; font-size: 0.95rem;">✨ <b>AI features are powered by your connected Pantry Planner server.</b></p>
     </div>
 
-    <h2>⚡ Fallback AI Providers (Optional)</h2>
-    <div class="card">
-      <p class="hint">In standalone mode, if Gemini experiences congestion, the app fails over to your configured backup providers. In connected mode, the server's own fallback chain is used automatically.</p>
-      
-      <label class="field-label" for="groq-key-input">Groq API Key (optional)</label>
-      <input id="groq-key-input" type="password" placeholder="gsk_... (meta-llama/llama-4-scout-17b-16e-instruct)"
-             autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button id="groq-key-btn" class="btn">Save Groq Key</button>
-      <p class="form-msg" id="groq-key-msg" role="status"></p>
-
-      <hr class="sep">
-
-      <label class="field-label" for="openrouter-key-input">OpenRouter API Key (optional)</label>
-      <input id="openrouter-key-input" type="password" placeholder="sk-or-v1-... (openrouter/free)"
-             autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button id="openrouter-key-btn" class="btn">Save OpenRouter Key</button>
-      <p class="form-msg" id="openrouter-key-msg" role="status"></p>
-
-      <hr class="sep">
-
-      <label class="field-label">Failover Order (read-only)</label>
-      <div class="failover-chain-box">
-        <span class="chain-step active">1. Google Gemini</span> &rarr;
-        <span class="chain-step">2. Groq</span> &rarr;
-        <span class="chain-step">3. OpenRouter</span>
+    <div id="standalone-keys-section">
+      <h2>🔑 Gemini API Key</h2>
+      <div class="card">
+        <p class="hint">When connected to your Home Server, all AI requests use the server's configured keys automatically.
+          This field applies when running in standalone offline mode. Your key is stored <b>only on this device</b> and is never logged.
+          Need a key? <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get one free here</a> — no credit card.</p>
+        <label class="field-label" for="settings-key-input">Gemini API Key (Standalone Mode)</label>
+        <input id="settings-key-input" type="password" placeholder="Paste a Gemini API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="settings-key-btn" class="btn btn-primary">Save &amp; Connect</button>
+        <p class="form-msg" id="settings-key-msg" role="status"></p>
       </div>
-      <p class="hint" style="margin-top: 6px;">Automatic retry triggers on HTTP 503, 429, or timeouts.</p>
+
+      <h2>⚡ Fallback AI Providers (Optional)</h2>
+      <div class="card">
+        <p class="hint">In standalone mode, if Gemini experiences congestion, the app fails over to your configured backup providers. In connected mode, the server's own fallback chain is used automatically.</p>
+        
+        <label class="field-label" for="groq-key-input">Groq API Key (optional)</label>
+        <input id="groq-key-input" type="password" placeholder="gsk_... (meta-llama/llama-4-scout-17b-16e-instruct)"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="groq-key-btn" class="btn">Save Groq Key</button>
+        <p class="form-msg" id="groq-key-msg" role="status"></p>
+
+        <hr class="sep">
+
+        <label class="field-label" for="openrouter-key-input">OpenRouter API Key (optional)</label>
+        <input id="openrouter-key-input" type="password" placeholder="sk-or-v1-... (openrouter/free)"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="openrouter-key-btn" class="btn">Save OpenRouter Key</button>
+        <p class="form-msg" id="openrouter-key-msg" role="status"></p>
+
+        <hr class="sep">
+
+        <label class="field-label">Failover Order (read-only)</label>
+        <div class="failover-chain-box">
+          <span class="chain-step active">1. Google Gemini</span> &rarr;
+          <span class="chain-step">2. Groq</span> &rarr;
+          <span class="chain-step">3. OpenRouter</span>
+        </div>
+        <p class="hint" style="margin-top: 6px;">Automatic retry triggers on HTTP 503, 429, or timeouts.</p>
+      </div>
     </div>
 
     <h2>🛒 Grocery Store Handoff</h2>

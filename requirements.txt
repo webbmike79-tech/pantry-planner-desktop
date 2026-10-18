@@ -7,3 +7,4 @@ pandas
 python-multipart
 pywebview
 qrcode
+libsql-client

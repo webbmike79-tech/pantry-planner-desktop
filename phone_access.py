@@ -46,7 +46,7 @@ DEFAULT_CONFIG = {
 # header values with other characters can be rejected by phone WebViews.
 CODE_RE = re.compile(r"^[\x21-\x7E]{4,64}$")
 
-LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 LOOPBACK_BIND = "127.0.0.1"
 NETWORK_BIND = "0.0.0.0"
 
@@ -205,6 +205,40 @@ class PhoneAccessMiddleware(BaseHTTPMiddleware):
     phone app would see a bare network error instead of a readable message)."""
 
     async def dispatch(self, request: Request, call_next):
+        from db import is_multi_household, current_household_var, init_db
+
+        path = request.url.path
+        multi = is_multi_household()
+
+        if multi:
+            # /health, /healthz, and static assets bypass household token requirement
+            if path in ("/health", "/healthz") or not path.startswith("/api/"):
+                return await call_next(request)
+
+            # In multi-household mode, every /api/ request carries the household access code
+            token = (
+                request.headers.get("x-pantry-token")
+                or request.headers.get("X-Pantry-Token")
+                or request.query_params.get("token")
+                or ""
+            ).strip()
+
+            if not token:
+                return JSONResponse(
+                    {"detail": "Household access code required. Enter your code in Settings."},
+                    status_code=401,
+                )
+
+            # Set current household context and ensure tables are initialized
+            reset_token = current_household_var.set(token)
+            try:
+                init_db(token)
+                response = await call_next(request)
+                return response
+            finally:
+                current_household_var.reset(reset_token)
+
+        # Standard desktop LAN behavior (MULTI_HOUSEHOLD unset)
         if is_loopback(request):
             return await call_next(request)
 
@@ -215,7 +249,6 @@ class PhoneAccessMiddleware(BaseHTTPMiddleware):
                 status_code=403,
             )
 
-        path = request.url.path
         if path.startswith("/api/desktop/"):
             return JSONResponse(
                 {"detail": "This setting can only be changed on the desktop."}, status_code=403

@@ -1,0 +1,292 @@
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+_TMP = tempfile.mkdtemp(prefix="pantry_m7_")
+os.environ["PANTRY_DB_FILE"] = os.path.join(_TMP, "m7_test.db")
+os.environ["PANTRY_CONFIG_FILE"] = os.path.join(_TMP, "m7_cfg.json")
+
+import ai_fallback
+import db
+import main
+import phone_access
+from fastapi.testclient import TestClient
+
+
+class TestM7Hosting(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(main.app)
+
+    def tearDown(self):
+        if "MULTI_HOUSEHOLD" in os.environ:
+            del os.environ["MULTI_HOUSEHOLD"]
+        if "GEMINI_API_KEY" in os.environ:
+            del os.environ["GEMINI_API_KEY"]
+        if "GROQ_API_KEY" in os.environ:
+            del os.environ["GROQ_API_KEY"]
+        if "OPENROUTER_API_KEY" in os.environ:
+            del os.environ["OPENROUTER_API_KEY"]
+
+    def test_health_endpoint(self):
+        """GET /health must return ok: True and status: ok."""
+        res = self.client.get("/health")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("ok"), True)
+        self.assertEqual(data.get("status"), "ok")
+        self.assertEqual(data.get("app"), "pantry-planner")
+
+    def test_env_keys_precedence(self):
+        """Environment variables take precedence over config files."""
+        # Scenario 1: Config file has dummy keys, env is empty -> config keys returned
+        env_empty = {}
+        cfg_dummy = {"gemini": "cfg_gemini_key", "groq": "cfg_groq_key", "openrouter": "cfg_openrouter_key"}
+        keys = ai_fallback.extract_provider_keys(headers={}, env=env_empty)
+        # Verify fallback works when config file has keys
+        cfg_file = os.path.join(_TMP, "provider_cfg.json")
+        import json
+        with open(cfg_file, "w") as f:
+            json.dump({"provider_keys": cfg_dummy}, f)
+
+        keys_from_cfg = ai_fallback.extract_provider_keys(headers={}, env={"PANTRY_CONFIG_FILE": cfg_file})
+        self.assertEqual(keys_from_cfg.gemini_key, "cfg_gemini_key")
+        self.assertEqual(keys_from_cfg.groq_key, "cfg_groq_key")
+        self.assertEqual(keys_from_cfg.openrouter_key, "cfg_openrouter_key")
+
+        # Scenario 2: Env vars set -> env vars win over config
+        env_with_keys = {
+            "PANTRY_CONFIG_FILE": cfg_file,
+            "GEMINI_API_KEY": "env_gemini_override",
+            "GROQ_API_KEY": "env_groq_override",
+            "OPENROUTER_API_KEY": "env_openrouter_override",
+        }
+        keys_from_env = ai_fallback.extract_provider_keys(headers={}, env=env_with_keys)
+        self.assertEqual(keys_from_env.gemini_key, "env_gemini_override")
+        self.assertEqual(keys_from_env.groq_key, "env_groq_override")
+        self.assertEqual(keys_from_env.openrouter_key, "env_openrouter_override")
+
+    def test_multi_household_auth_and_isolation(self):
+        """Verify strict multi-household partitioning under MULTI_HOUSEHOLD=1."""
+        os.environ["MULTI_HOUSEHOLD"] = "1"
+
+        # 1. /health bypasses token requirement
+        res_health = self.client.get("/health")
+        self.assertEqual(res_health.status_code, 200)
+        self.assertEqual(res_health.json().get("ok"), True)
+
+        # 2. /api/* requires household token
+        res_no_token = self.client.get("/api/inventory")
+        self.assertEqual(res_no_token.status_code, 401)
+        self.assertIn("Household access code required", res_no_token.json().get("detail", ""))
+
+        token_a = "household-alpha-token-111"
+        token_b = "household-beta-token-222"
+        headers_a = {"X-Pantry-Token": token_a}
+        headers_b = {"X-Pantry-Token": token_b}
+
+        # 3. Household A connects fresh: empty inventory, default settings, no plan
+        res_a_inv_init = self.client.get("/api/inventory", headers=headers_a)
+        self.assertEqual(res_a_inv_init.status_code, 200)
+        self.assertEqual(res_a_inv_init.json(), [])
+
+        res_a_set_init = self.client.get("/api/settings", headers=headers_a)
+        self.assertEqual(res_a_set_init.status_code, 200)
+        self.assertEqual(res_a_set_init.json().get("base_headcount"), 2)
+
+        res_a_plan_init = self.client.get("/api/plan/latest", headers=headers_a)
+        self.assertEqual(res_a_plan_init.status_code, 200)
+        self.assertIsNone(res_a_plan_init.json().get("plan"))
+
+        # 4. Household A seeds inventory, settings, and a plan
+        self.client.post("/api/inventory", headers=headers_a, json={
+            "location": "Fridge",
+            "items": [{"item_name": "Apples", "category": "Veggies & Produce", "quantity": 5.0, "unit": "count"}]
+        })
+        self.client.put("/api/settings", headers=headers_a, json={
+            "base_headcount": 6,
+            "dietary_tags": ["Vegetarian"],
+            "custom_diet_notes": "Gluten allergy in family",
+            "essential_staples": "Oat milk, Apples"
+        })
+        sample_plan = {
+            "menu": [{
+                "day": "Monday",
+                "headcount": 6,
+                "meal_name": "Apple Salad",
+                "description": "Crisp salad with apples",
+                "ingredients": ["Apples", "Lettuce"],
+                "pantry_ingredients": ["Apples"],
+                "missing_ingredients": ["Lettuce"],
+                "instructions": "Chop and toss",
+                "prep_time_minutes": 10,
+                "cook_time_minutes": 0,
+                "dietary_tags": ["Vegetarian"],
+                "cooked": False
+            }],
+            "shopping_list": [{
+                "item_name": "Lettuce",
+                "category": "Produce",
+                "amount_needed": "1 head",
+                "numeric_quantity": 1.0,
+                "unit": "head",
+                "default_location": "Fridge",
+                "inventory_category": "Veggies & Produce",
+                "reason": "Needed for salad",
+                "purchased": False
+            }]
+        }
+        main.save_plan(sample_plan, household=token_a)
+
+        # Confirm A has 1 item, headcount 6, and a saved plan
+        res_a_inv = self.client.get("/api/inventory", headers=headers_a)
+        self.assertEqual(len(res_a_inv.json()), 1)
+        self.assertEqual(res_a_inv.json()[0]["item_name"], "Apples")
+
+        res_a_set = self.client.get("/api/settings", headers=headers_a)
+        self.assertEqual(res_a_set.json()["base_headcount"], 6)
+        self.assertEqual(res_a_set.json()["custom_diet_notes"], "Gluten allergy in family")
+
+        res_a_plan = self.client.get("/api/plan/latest", headers=headers_a)
+        self.assertIsNotNone(res_a_plan.json()["plan"])
+        self.assertEqual(res_a_plan.json()["plan"]["menu"][0]["meal_name"], "Apple Salad")
+
+        # 5. Household B connects with fresh code: MUST see empty inventory, default settings, no plan
+        res_b_inv = self.client.get("/api/inventory", headers=headers_b)
+        self.assertEqual(res_b_inv.status_code, 200)
+        self.assertEqual(res_b_inv.json(), [], "Household B must not see A's inventory")
+
+        res_b_set = self.client.get("/api/settings", headers=headers_b)
+        self.assertEqual(res_b_set.status_code, 200)
+        self.assertEqual(res_b_set.json()["base_headcount"], 2, "Household B must see default headcount 2, not A's 6")
+        self.assertNotEqual(res_b_set.json()["custom_diet_notes"], "Gluten allergy in family")
+
+        res_b_plan = self.client.get("/api/plan/latest", headers=headers_b)
+        self.assertEqual(res_b_plan.status_code, 200)
+        self.assertIsNone(res_b_plan.json().get("plan"), "Household B must have no plan")
+
+        # 6. Household B seeds its own data (3 Oranges, headcount 3, separate plan)
+        res_b_inv_post = self.client.post("/api/inventory", headers=headers_b, json={
+            "location": "Cupboard / Pantry",
+            "items": [{"item_name": "Oranges", "category": "Produce/Veggies", "quantity": 3.0, "unit": "count"}]
+        })
+        self.assertEqual(res_b_inv_post.status_code, 200, res_b_inv_post.text)
+        sample_plan_b = {
+            "menu": [{
+                "day": "Tuesday",
+                "headcount": 3,
+                "meal_name": "Orange Chicken",
+                "description": "Tasty orange dish",
+                "ingredients": ["Oranges", "Chicken"],
+                "pantry_ingredients": ["Oranges"],
+                "missing_ingredients": ["Chicken"],
+                "instructions": "Cook chicken and glaze",
+                "prep_time_minutes": 15,
+                "cook_time_minutes": 20,
+                "dietary_tags": [],
+                "cooked": False
+            }],
+            "shopping_list": []
+        }
+        main.save_plan(sample_plan_b, household=token_b)
+
+        # 7. Household A deletes plan (Clear menu): B must remain completely untouched
+        res_del_a = self.client.delete("/api/plan", headers=headers_a)
+        self.assertIsNone(res_del_a.json().get("plan"))
+
+        # A's plan is now gone
+        res_a_plan_post_clear = self.client.get("/api/plan/latest", headers=headers_a)
+        self.assertIsNone(res_a_plan_post_clear.json().get("plan"))
+
+        # B's plan is still intact!
+        res_b_plan_after_a_clear = self.client.get("/api/plan/latest", headers=headers_b)
+        self.assertIsNotNone(res_b_plan_after_a_clear.json().get("plan"))
+        self.assertEqual(res_b_plan_after_a_clear.json()["plan"]["menu"][0]["meal_name"], "Orange Chicken")
+
+        # 8. Deduct an item in Household A: B is untouched
+        plan_with_deduct = {
+            "menu": [{
+                "day": "Monday",
+                "headcount": 2,
+                "meal_name": "Apple Tart",
+                "description": "Bake apples",
+                "ingredients": ["Apples"],
+                "instructions": "Bake",
+                "prep_time_minutes": 5,
+                "cook_time_minutes": 20,
+                "dietary_tags": [],
+                "cooked": False,
+                "ingredients_to_deduct": [
+                    {"item_name": "Apples", "amount_used": 2.0, "unit": "count"}
+                ]
+            }],
+            "shopping_list": []
+        }
+        main.save_plan(plan_with_deduct, household=token_a)
+        res_cook = self.client.post("/api/plan/cook", headers=headers_a, json={"day_index": 0})
+        self.assertEqual(res_cook.status_code, 200)
+
+        # In A, inventory now has 3.0 apples
+        res_a_inv_deducted = self.client.get("/api/inventory", headers=headers_a).json()
+        self.assertEqual(res_a_inv_deducted[0]["quantity"], 3.0)
+
+        # In B, inventory is still 3.0 oranges (completely untouched!)
+        res_b_inv_after_deduct = self.client.get("/api/inventory", headers=headers_b).json()
+        self.assertEqual(res_b_inv_after_deduct[0]["item_name"], "Oranges")
+        self.assertEqual(res_b_inv_after_deduct[0]["quantity"], 3.0)
+
+        # Clear inventory in A
+        self.client.delete("/api/inventory", headers=headers_a)
+        res_a_inv_cleared = self.client.get("/api/inventory", headers=headers_a).json()
+        self.assertEqual(res_a_inv_cleared, [])
+
+        # B is completely untouched!
+        res_b_inv_after_a_delete = self.client.get("/api/inventory", headers=headers_b).json()
+        self.assertEqual(len(res_b_inv_after_a_delete), 1)
+        self.assertEqual(res_b_inv_after_a_delete[0]["item_name"], "Oranges")
+        self.assertEqual(res_b_inv_after_a_delete[0]["quantity"], 3.0)
+
+    from unittest.mock import patch
+
+    @patch("main.generate_weekly_menu_and_list")
+    def test_generator_env_precedence(self, mock_generator):
+        """Set GEMINI_API_KEY in env, call generator, verify used without being in persisted settings;
+        unset env, verify persisted settings used."""
+        meal = main.MealDetail(dish_name="Oatmeal", prep_steps=["Boil water", "Stir oats"], cook_time_minutes=5)
+        dummy_plan = main.WeeklyPlanOutput(
+            menu=[main.DayMealPlan(
+                day="Monday", headcount=2, breakfast=meal, lunch=meal, dinner=meal,
+                ingredients_to_deduct=[], cooked=False
+            )],
+            shopping_list=[],
+            nutrition_notes="Healthy"
+        )
+        mock_generator.return_value = (dummy_plan, "gemini")
+
+        # Case 1: GEMINI_API_KEY set in env, no config file
+        os.environ["GEMINI_API_KEY"] = "gemini_env_key_xyz"
+        if os.path.exists(os.environ["PANTRY_CONFIG_FILE"]):
+            os.remove(os.environ["PANTRY_CONFIG_FILE"])
+
+        res = self.client.post("/api/plan/generate", json={"daily_headcounts": {}})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json().get("served_by"), "gemini")
+
+        # Case 2: Unset GEMINI_API_KEY from env, save persisted settings in config file
+        del os.environ["GEMINI_API_KEY"]
+        phone_access.save_config({
+            "phone_access": True,
+            "access_code": "",
+            "provider_keys": {"gemini": "persisted_gemini_key", "groq": "", "openrouter": ""}
+        })
+        res2 = self.client.post("/api/plan/generate", json={"daily_headcounts": {}})
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.json().get("served_by"), "gemini")
+
+
+if __name__ == "__main__":
+    unittest.main()

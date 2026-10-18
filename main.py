@@ -51,6 +51,7 @@ from ai_fallback import (
 )
 
 import phone_access
+import db
 
 # ==========================================
 # PATHS
@@ -224,67 +225,19 @@ class ReceiptScanResult(BaseModel):
 # ==========================================
 
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS inventory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            location TEXT,
-            item_name TEXT,
-            category TEXT,
-            quantity REAL,
-            unit TEXT,
-            updated_at TEXT
-        )
-    """
-    )
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS settings (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            base_headcount INTEGER,
-            dietary_tags TEXT,
-            custom_diet_notes TEXT,
-            essential_staples TEXT
-        )
-    """
-    )
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS saved_plans (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT,
-            plan_json TEXT
-        )
-    """
-    )
-    c.execute("SELECT COUNT(*) FROM settings")
-    if c.fetchone()[0] == 0:
-        default_tags = json.dumps(["Balanced & Whole Foods"])
-        default_staples = (
-            "Olive oil, garlic powder, onion powder, black pepper, broth, fresh veggies, water"
-        )
-        c.execute(
-            """
-            INSERT INTO settings (id, base_headcount, dietary_tags, custom_diet_notes, essential_staples)
-            VALUES (1, 2, ?, 'Provide wholesome meals tailored to any household restrictions entered below.', ?)
-        """,
-            (default_tags, default_staples),
-        )
-    conn.commit()
-    conn.close()
+def init_db(household: Optional[str] = None):
+    db.init_db(household)
 
 
-def add_inventory_items(location: str, items: List[DetectedItem]):
-    conn = sqlite3.connect(DB_FILE)
+def add_inventory_items(location: str, items: List[DetectedItem], household: Optional[str] = None):
+    inv_tbl, _, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for item in items:
         c.execute(
-            """
-            INSERT INTO inventory (location, item_name, category, quantity, unit, updated_at)
+            f"""
+            INSERT INTO {inv_tbl} (location, item_name, category, quantity, unit, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """,
             (location, item.item_name, item.category, item.quantity, item.unit, now),
@@ -293,20 +246,25 @@ def add_inventory_items(location: str, items: List[DetectedItem]):
     conn.close()
 
 
-def get_inventory_df() -> pd.DataFrame:
-    conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql_query("SELECT * FROM inventory ORDER BY location, category, item_name", conn)
+def get_inventory_df(household: Optional[str] = None) -> pd.DataFrame:
+    inv_tbl, _, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
+    c = conn.cursor()
+    c.execute(f"SELECT * FROM {inv_tbl} ORDER BY location, category, item_name")
+    rows = c.fetchall()
+    cols = [d[0] for d in c.description] if c.description else ["id", "location", "item_name", "category", "quantity", "unit", "updated_at"]
+    data = [list(r) for r in rows]
     conn.close()
-    return df
+    return pd.DataFrame(data, columns=cols)
 
 
-def get_inventory() -> List[dict]:
+def get_inventory(household: Optional[str] = None) -> List[dict]:
     """Inventory as a list of plain dicts (JSON-friendly types)."""
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT * FROM inventory ORDER BY location, category, item_name"
-    ).fetchall()
+    inv_tbl, _, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
+    c = conn.cursor()
+    c.execute(f"SELECT * FROM {inv_tbl} ORDER BY location, category, item_name")
+    rows = c.fetchall()
     conn.close()
     return [
         {
@@ -322,22 +280,25 @@ def get_inventory() -> List[dict]:
     ]
 
 
-def clear_inventory():
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute("DELETE FROM inventory")
+def clear_inventory(household: Optional[str] = None):
+    inv_tbl, _, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
+    c = conn.cursor()
+    c.execute(f"DELETE FROM {inv_tbl}")
     conn.commit()
     conn.close()
 
 
-def replace_inventory_from_df(df: pd.DataFrame):
+def replace_inventory_from_df(df: pd.DataFrame, household: Optional[str] = None):
     # FIX (2026-10-14, from app.py): preserve existing row IDs on save. The
     # original version deleted all rows and re-inserted without IDs, so every
     # save renumbered the inventory and broke the inventory_id references
     # stored in saved meal plans. Rows carrying a valid existing id keep it;
     # brand-new rows (id empty/NaN) get a fresh id.
-    conn = sqlite3.connect(DB_FILE)
+    inv_tbl, _, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM inventory")
+    c.execute(f"DELETE FROM {inv_tbl}")
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     seen_ids = set()
     for _, row in df.iterrows():
@@ -361,16 +322,16 @@ def replace_inventory_from_df(df: pd.DataFrame):
         )
         if keep_id is not None:
             c.execute(
-                """
-                INSERT INTO inventory (id, location, item_name, category, quantity, unit, updated_at)
+                f"""
+                INSERT INTO {inv_tbl} (id, location, item_name, category, quantity, unit, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
                 (keep_id,) + values,
             )
         else:
             c.execute(
-                """
-                INSERT INTO inventory (location, item_name, category, quantity, unit, updated_at)
+                f"""
+                INSERT INTO {inv_tbl} (location, item_name, category, quantity, unit, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
                 values,
@@ -380,10 +341,11 @@ def replace_inventory_from_df(df: pd.DataFrame):
 
 
 
-def deduct_day_from_inventory(plan_id: int, day_idx: int) -> List[str]:
-    conn = sqlite3.connect(DB_FILE)
+def deduct_day_from_inventory(plan_id: int, day_idx: int, household: Optional[str] = None) -> List[str]:
+    inv_tbl, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT plan_json FROM saved_plans WHERE id = ?", (plan_id,))
+    c.execute(f"SELECT plan_json FROM {plan_tbl} WHERE id = ?", (plan_id,))
     row = c.fetchone()
     if not row:
         conn.close()
@@ -408,27 +370,27 @@ def deduct_day_from_inventory(plan_id: int, day_idx: int) -> List[str]:
         if amt <= 0:
             continue
 
-        c.execute("SELECT id, quantity FROM inventory WHERE id = ?", (inv_id,))
+        c.execute(f"SELECT id, quantity FROM {inv_tbl} WHERE id = ?", (inv_id,))
         target = c.fetchone()
         if not target:
             c.execute(
-                "SELECT id, quantity FROM inventory WHERE LOWER(item_name) = LOWER(?) LIMIT 1",
+                f"SELECT id, quantity FROM {inv_tbl} WHERE LOWER(item_name) = LOWER(?) LIMIT 1",
                 (name,),
             )
             target = c.fetchone()
 
         if target:
-            target_id, current_qty = target
+            target_id, current_qty = target[0], target[1]
             new_qty = max(0.0, round(float(current_qty) - amt, 2))
             c.execute(
-                "UPDATE inventory SET quantity = ?, updated_at = ? WHERE id = ?",
+                f"UPDATE {inv_tbl} SET quantity = ?, updated_at = ? WHERE id = ?",
                 (new_qty, now, target_id),
             )
             deducted_summary.append(f"{name}: -{amt} {unit} (now {new_qty} {unit})")
 
     plan_data["menu"][day_idx]["cooked"] = True
     c.execute(
-        "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+        f"UPDATE {plan_tbl} SET plan_json = ? WHERE id = ?",
         (json.dumps(plan_data), plan_id),
     )
     conn.commit()
@@ -436,10 +398,11 @@ def deduct_day_from_inventory(plan_id: int, day_idx: int) -> List[str]:
     return deducted_summary
 
 
-def restock_checked_shopping_items(plan_id: int, item_indices: List[int]) -> List[str]:
-    conn = sqlite3.connect(DB_FILE)
+def restock_checked_shopping_items(plan_id: int, item_indices: List[int], household: Optional[str] = None) -> List[str]:
+    inv_tbl, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT plan_json FROM saved_plans WHERE id = ?", (plan_id,))
+    c.execute(f"SELECT plan_json FROM {plan_tbl} WHERE id = ?", (plan_id,))
     row = c.fetchone()
     if not row:
         conn.close()
@@ -470,23 +433,23 @@ def restock_checked_shopping_items(plan_id: int, item_indices: List[int]) -> Lis
         inv_cat = item.get("inventory_category") or "Pantry/Dry"
 
         c.execute(
-            "SELECT id, quantity FROM inventory WHERE LOWER(item_name) = LOWER(?) LIMIT 1",
+            f"SELECT id, quantity FROM {inv_tbl} WHERE LOWER(item_name) = LOWER(?) LIMIT 1",
             (name,),
         )
         existing = c.fetchone()
 
         if existing:
-            ex_id, ex_qty = existing
+            ex_id, ex_qty = existing[0], existing[1]
             new_qty = round(float(ex_qty) + qty, 2)
             c.execute(
-                "UPDATE inventory SET quantity = ?, updated_at = ? WHERE id = ?",
+                f"UPDATE {inv_tbl} SET quantity = ?, updated_at = ? WHERE id = ?",
                 (new_qty, now, ex_id),
             )
             restocked_log.append(f"Updated {name}: +{qty} {unit} (Total: {new_qty} {unit})")
         else:
             c.execute(
-                """
-                INSERT INTO inventory (location, item_name, category, quantity, unit, updated_at)
+                f"""
+                INSERT INTO {inv_tbl} (location, item_name, category, quantity, unit, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
                 (loc, name, inv_cat, qty, unit, now),
@@ -497,7 +460,7 @@ def restock_checked_shopping_items(plan_id: int, item_indices: List[int]) -> Lis
 
     plan_data["shopping_list"] = shopping_list
     c.execute(
-        "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+        f"UPDATE {plan_tbl} SET plan_json = ? WHERE id = ?",
         (json.dumps(plan_data), plan_id),
     )
     conn.commit()
@@ -505,14 +468,15 @@ def restock_checked_shopping_items(plan_id: int, item_indices: List[int]) -> Lis
     return restocked_log
 
 
-def clear_purchased_shopping_items(plan_id: int) -> int:
+def clear_purchased_shopping_items(plan_id: int, household: Optional[str] = None) -> int:
     """Remove all items already marked purchased from the plan's shopping list.
 
     Returns the number of items removed. Inventory is not touched.
     """
-    conn = sqlite3.connect(DB_FILE)
+    _, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT plan_json FROM saved_plans WHERE id = ?", (plan_id,))
+    c.execute(f"SELECT plan_json FROM {plan_tbl} WHERE id = ?", (plan_id,))
     row = c.fetchone()
     if not row:
         conn.close()
@@ -526,7 +490,7 @@ def clear_purchased_shopping_items(plan_id: int) -> int:
     if removed:
         plan_data["shopping_list"] = remaining
         c.execute(
-            "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+            f"UPDATE {plan_tbl} SET plan_json = ? WHERE id = ?",
             (json.dumps(plan_data), plan_id),
         )
         conn.commit()
@@ -535,16 +499,17 @@ def clear_purchased_shopping_items(plan_id: int) -> int:
 
 
 def process_scanned_receipt_items(
-    plan_id: Optional[int], receipt_items: List[ReceiptLineItem]
+    plan_id: Optional[int], receipt_items: List[ReceiptLineItem], household: Optional[str] = None
 ) -> List[str]:
-    conn = sqlite3.connect(DB_FILE)
+    inv_tbl, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     plan_data = None
     shopping_list = []
     if plan_id is not None:
-        c.execute("SELECT plan_json FROM saved_plans WHERE id = ?", (plan_id,))
+        c.execute(f"SELECT plan_json FROM {plan_tbl} WHERE id = ?", (plan_id,))
         row = c.fetchone()
         if row:
             plan_data = json.loads(row[0])
@@ -562,22 +527,22 @@ def process_scanned_receipt_items(
         inv_cat = r_item.inventory_category
 
         c.execute(
-            "SELECT id, quantity FROM inventory WHERE LOWER(item_name) = LOWER(?) LIMIT 1",
+            f"SELECT id, quantity FROM {inv_tbl} WHERE LOWER(item_name) = LOWER(?) LIMIT 1",
             (name,),
         )
         existing = c.fetchone()
         if existing:
-            ex_id, ex_qty = existing
+            ex_id, ex_qty = existing[0], existing[1]
             new_qty = round(float(ex_qty) + qty, 2)
             c.execute(
-                "UPDATE inventory SET quantity = ?, updated_at = ? WHERE id = ?",
+                f"UPDATE {inv_tbl} SET quantity = ?, updated_at = ? WHERE id = ?",
                 (new_qty, now, ex_id),
             )
             log_entry = f"🔄 **{name}**: +{qty} {unit} (Now {new_qty} {unit} in {loc})"
         else:
             c.execute(
-                """
-                INSERT INTO inventory (location, item_name, category, quantity, unit, updated_at)
+                f"""
+                INSERT INTO {inv_tbl} (location, item_name, category, quantity, unit, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
                 (loc, name, inv_cat, qty, unit, now),
@@ -602,7 +567,7 @@ def process_scanned_receipt_items(
     if plan_data is not None and plan_id is not None:
         plan_data["shopping_list"] = shopping_list
         c.execute(
-            "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+            f"UPDATE {plan_tbl} SET plan_json = ? WHERE id = ?",
             (json.dumps(plan_data), plan_id),
         )
 
@@ -611,28 +576,37 @@ def process_scanned_receipt_items(
     return restocked_log
 
 
-def get_settings():
-    conn = sqlite3.connect(DB_FILE)
+def get_settings(household: Optional[str] = None):
+    _, set_tbl, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT base_headcount, dietary_tags, custom_diet_notes, essential_staples FROM settings WHERE id = 1"
+        f"SELECT base_headcount, dietary_tags, custom_diet_notes, essential_staples FROM {set_tbl} WHERE id = 1"
     )
     row = c.fetchone()
     conn.close()
+    if not row:
+        return {
+            "base_headcount": 2,
+            "dietary_tags": ["Balanced & Whole Foods"],
+            "custom_diet_notes": "",
+            "essential_staples": "",
+        }
     return {
         "base_headcount": row[0],
-        "dietary_tags": json.loads(row[1]),
+        "dietary_tags": json.loads(row[1]) if isinstance(row[1], str) else row[1],
         "custom_diet_notes": row[2],
         "essential_staples": row[3],
     }
 
 
-def save_settings(base_headcount: int, dietary_tags: list, custom_notes: str, staples: str):
-    conn = sqlite3.connect(DB_FILE)
+def save_settings(base_headcount: int, dietary_tags: list, custom_notes: str, staples: str, household: Optional[str] = None):
+    _, set_tbl, _ = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
-        """
-        UPDATE settings
+        f"""
+        UPDATE {set_tbl}
         SET base_headcount = ?, dietary_tags = ?, custom_diet_notes = ?, essential_staples = ?
         WHERE id = 1
     """,
@@ -642,21 +616,25 @@ def save_settings(base_headcount: int, dietary_tags: list, custom_notes: str, st
     conn.close()
 
 
-def save_plan(plan_dict: dict):
-    conn = sqlite3.connect(DB_FILE)
+def save_plan(plan_dict: dict, household: Optional[str] = None) -> Optional[int]:
+    _, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO saved_plans (created_at, plan_json) VALUES (?, ?)",
+        f"INSERT INTO {plan_tbl} (created_at, plan_json) VALUES (?, ?)",
         (datetime.now().strftime("%Y-%m-%d %H:%M"), json.dumps(plan_dict)),
     )
+    new_id = getattr(c, "lastrowid", None)
     conn.commit()
     conn.close()
+    return new_id
 
 
-def get_latest_plan():
-    conn = sqlite3.connect(DB_FILE)
+def get_latest_plan(household: Optional[str] = None):
+    _, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT id, created_at, plan_json FROM saved_plans ORDER BY id DESC LIMIT 1")
+    c.execute(f"SELECT id, created_at, plan_json FROM {plan_tbl} ORDER BY id DESC LIMIT 1")
     row = c.fetchone()
     conn.close()
     if row:
@@ -664,22 +642,24 @@ def get_latest_plan():
     return None, None, None
 
 
-def update_saved_plan(plan_id: int, plan_dict: dict):
-    conn = sqlite3.connect(DB_FILE)
+def update_saved_plan(plan_id: int, plan_dict: dict, household: Optional[str] = None):
+    _, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
     c.execute(
-        "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+        f"UPDATE {plan_tbl} SET plan_json = ? WHERE id = ?",
         (json.dumps(plan_dict), plan_id),
     )
     conn.commit()
     conn.close()
 
 
-def clear_saved_plans():
+def clear_saved_plans(household: Optional[str] = None):
     """Delete all rows from saved_plans, completely clearing the current menu and shopping list."""
-    conn = sqlite3.connect(DB_FILE)
+    _, _, plan_tbl = db.get_table_names(household)
+    conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM saved_plans")
+    c.execute(f"DELETE FROM {plan_tbl}")
     conn.commit()
     conn.close()
 
@@ -1039,6 +1019,7 @@ def latest_plan_payload():
 @app.get("/health")
 def health():
     return {
+        "ok": True,
         "status": "ok",
         "app": "pantry-planner",
         "auth_required": bool(phone_access.load_config().get("access_code")),

@@ -179,6 +179,16 @@ function updateConnectionUI() {
     if (dot) dot.classList.add("disconnected");
     if (statusText) statusText.textContent = `Disconnected (${hostLabel})`;
   }
+
+  const isConnected = connectionState === "CONNECTED" || Boolean(storedServerUrl());
+  const standaloneKeysSection = $("#standalone-keys-section");
+  const connectedKeysNotice = $("#connected-keys-notice");
+  if (standaloneKeysSection) {
+    standaloneKeysSection.hidden = isConnected;
+  }
+  if (connectedKeysNotice) {
+    connectedKeysNotice.hidden = !isConnected;
+  }
 }
 
 function setConnectionState(newState, detail) {
@@ -922,8 +932,13 @@ async function testServerConnection() {
   const urlInput = $("#server-url-input");
   const tokenInput = $("#server-token-input");
   const msg = $("#server-msg");
-  const url = (urlInput.value || "").trim();
+  let url = (urlInput.value || "").trim().replace(/\/+$/, "");
   const token = (tokenInput.value || "").trim();
+
+  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+    url = (url.includes("hf.space") ? "https://" : "http://") + url;
+    urlInput.value = url;
+  }
 
   setMsg(msg, "Testing connection to server…");
   const res = await probeHealth(url, token);
@@ -944,7 +959,7 @@ async function saveServerSettings() {
   const token = (tokenInput.value || "").trim();
 
   if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-    url = "http://" + url;
+    url = (url.includes("hf.space") ? "https://" : "http://") + url;
     urlInput.value = url;
   }
 
@@ -1942,7 +1957,7 @@ function init() {
       return;
     }
     if (!val.startsWith("http://") && !val.startsWith("https://")) {
-      val = "http://" + val;
+      val = (val.includes("hf.space") ? "https://" : "http://") + val;
       input.value = val;
     }
     setMsg(msg, "Checking connection…");
