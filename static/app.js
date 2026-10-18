@@ -316,11 +316,22 @@ async function saveDiet() {
 
 /* ---------------- Menu (week grid) ---------------- */
 
-function mealBlock(emoji, label, meal) {
+function mealBlock(emoji, label, slotKey, meal, dayIdx, isCooked) {
   if (!meal) return "";
   const steps = (meal.prep_steps || []).map((s) => `<li>${esc(s)}</li>`).join("");
+  const changedNote = meal.changed_from
+    ? `<div class="changed-note">🔄 Changed from: <i>${esc(meal.changed_from)}</i></div>`
+    : "";
+  const swapBtn = !isCooked
+    ? `<button class="swap-meal-btn" data-day="${dayIdx}" data-slot="${slotKey}" title="Change this meal">🔄 Change this meal</button>`
+    : "";
+
   return `<div class="meal">
-    <h4>${emoji} ${label}: ${esc(meal.dish_name || "")}</h4>
+    <div class="meal-header">
+      <h4>${emoji} ${label}: ${esc(meal.dish_name || "")}</h4>
+      ${swapBtn}
+    </div>
+    ${changedNote}
     <span class="cook-time">⏱️ Cook Time: ${meal.cook_time_minutes ?? ""} mins</span>
     <details><summary>Recipe steps</summary><ol>${steps}</ol></details>
   </div>`;
@@ -349,18 +360,57 @@ function renderMenu() {
     card.innerHTML = `
       <div class="day-head"><h3>${esc(day.day)} — Feeding ${day.headcount} People</h3>
       <span class="badge ${day.cooked ? "done" : "planned"}">${day.cooked ? "✅ COOKED" : "⏳ PLANNED"}</span></div>
-      ${mealBlock("🌅", "Breakfast", day.breakfast)}
-      ${mealBlock("☀️", "Lunch", day.lunch)}
-      ${mealBlock("🌙", "Dinner", day.dinner)}
+      ${mealBlock("🌅", "Breakfast", "breakfast", day.breakfast, idx, day.cooked)}
+      ${mealBlock("☀️", "Lunch", "lunch", day.lunch, idx, day.cooked)}
+      ${mealBlock("🌙", "Dinner", "dinner", day.dinner, idx, day.cooked)}
       ${deduct ? `<p class="deduct-note"><b>Inventory to Deduct:</b> ${deduct}</p>` : ""}
       <button class="btn ${day.cooked ? "" : "btn-primary"} cook-btn" ${day.cooked ? "disabled" : ""}>
         ${day.cooked ? `✅ ${esc(day.day)} Cooked &amp; Deducted` : `🍳 Cooked ${esc(day.day)}'s Meals — Subtract from Inventory`}
       </button>`;
     const btn = card.querySelector(".cook-btn");
     if (!day.cooked) btn.addEventListener("click", () => cookDay(idx));
+
+    card.querySelectorAll(".swap-meal-btn").forEach((sBtn) => {
+      sBtn.addEventListener("click", () => {
+        const dIdx = parseInt(sBtn.dataset.day, 10);
+        const sSlot = sBtn.dataset.slot;
+        swapMeal(dIdx, sSlot, sBtn);
+      });
+    });
+
     wrap.appendChild(card);
   });
   renderStatus();
+}
+
+async function swapMeal(dayIndex, slot, btnEl) {
+  if (!requireKey()) return;
+  const originalText = btnEl ? btnEl.textContent : "";
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = "🔄 Finding meal…";
+  }
+  toast(`Re-picking ${slot} from on-hand ingredients…`);
+  try {
+    const data = await api("/api/plan/swap-meal", {
+      method: "POST",
+      body: { day_index: dayIndex, meal_slot: slot },
+    });
+    if (data.success) {
+      state.plan = data.plan;
+      renderMenu();
+      toast(data.message || "Meal changed!");
+    } else {
+      toast(data.message || "Nothing else on hand fits this slot");
+    }
+  } catch (e) {
+    toast(`⚠️ ${e.message}`);
+  } finally {
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = originalText;
+    }
+  }
 }
 
 async function generatePlan() {

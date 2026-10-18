@@ -127,6 +127,9 @@ class MealDetail(BaseModel):
         description="Step-by-step cooking instructions (include air fryer, oven, or stovetop guidance)"
     )
     cook_time_minutes: int = Field(description="Estimated cooking time in minutes")
+    changed_from: Optional[str] = Field(
+        default=None, description="Name of the previous meal if this meal slot was swapped"
+    )
 
 
 class DayMealPlan(BaseModel):
@@ -168,6 +171,29 @@ class WeeklyPlanOutput(BaseModel):
     shopping_list: List[ShoppingListItem]
     nutrition_notes: str = Field(
         description="Brief summary of how this menu strictly complies with the household's custom dietary restrictions"
+    )
+
+
+class MealSwapOutput(BaseModel):
+    found: bool = Field(
+        description="True if an on-hand recipe satisfying all rules was found, False otherwise"
+    )
+    dish_name: str = Field(
+        default="", description="Name of the replacement meal. Empty if found is False"
+    )
+    prep_steps: List[str] = Field(
+        default_factory=list, description="Step-by-step preparation steps"
+    )
+    cook_time_minutes: int = Field(
+        default=0, description="Estimated cooking time in minutes"
+    )
+    ingredients_used: List[UsedIngredient] = Field(
+        default_factory=list,
+        description="Ingredients deducted from remaining on-hand inventory for this replacement meal",
+    )
+    reason_if_not_found: str = Field(
+        default="",
+        description="Brief plain explanation if no on-hand recipe satisfies the constraints, e.g. 'Nothing else on hand fits this slot'",
     )
 
 
@@ -638,6 +664,17 @@ def get_latest_plan():
     return None, None, None
 
 
+def update_saved_plan(plan_id: int, plan_dict: dict):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(
+        "UPDATE saved_plans SET plan_json = ? WHERE id = ?",
+        (json.dumps(plan_dict), plan_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 
 # ==========================================
 # GEMINI AI FUNCTIONS (ported from app.py)
@@ -777,6 +814,46 @@ def generate_weekly_menu_and_list(
     )
 
 
+def swap_single_meal(
+    keys,
+    available_inventory: list,
+    target_slot: str,
+    current_dish_name: str,
+    other_meals: list,
+    headcount: int,
+    settings: dict,
+) -> Tuple[MealSwapOutput, str]:
+    """Re-picks a single meal slot using ONLY on-hand ingredients.
+    
+    Routes through the Milestone 5 provider fallback chain.
+    """
+    prompt = f"""
+    You are swapping out a single meal for {target_slot.upper()}.
+    
+    RULES FOR THE REPLACEMENT MEAL:
+    1. It MUST be buildable entirely from ingredients currently on hand in AVAILABLE INVENTORY.
+       Every ingredient used must exist in AVAILABLE INVENTORY with sufficient remaining quantity.
+       DO NOT propose any ingredient not in AVAILABLE INVENTORY or exceeding available quantity.
+       DO NOT create any new shopping list items.
+    2. It MUST NOT be "{current_dish_name}" (the meal being swapped out).
+    3. It SHOULD NOT duplicate any other meal already planned this week: {json.dumps(other_meals)}
+    4. Household Dietary Rules (STRICT ENFORCEMENT):
+       - Selected Tags/Diets: {", ".join(settings["dietary_tags"])}
+       - Specific Household Rules & Allergies: {settings["custom_diet_notes"]}
+       The replacement must strictly comply with all dietary tags and allergies.
+    5. Scale portion sizes accurately for a headcount of {headcount} people.
+    6. For each ingredient in `ingredients_used`, reference the exact `inventory_id` (matching the id in AVAILABLE INVENTORY), `item_name`, numeric `amount_used`, and `unit`.
+    7. IF NO ON-HAND REPLACEMENT SATISFIES ALL THE RULES: set `found` to False, leave `dish_name` empty, and set `reason_if_not_found` to "Nothing else on hand fits this slot". NEVER invent ingredients or ignore dietary rules.
+
+    AVAILABLE INVENTORY (Items on hand after committed usage):
+    {json.dumps(available_inventory, indent=2)}
+    """
+
+    return _generate_structured(
+        keys, prompt, MealSwapOutput, 0.2, "swap meal"
+    )
+
+
 # ==========================================
 # SHOPPING LIST MARKDOWN EXPORT
 # (same format as the Streamlit Tab 4 export)
@@ -885,6 +962,11 @@ class GeneratePlanRequest(BaseModel):
 
 class CookRequest(BaseModel):
     day_index: int
+
+
+class SwapMealRequest(BaseModel):
+    day_index: int
+    meal_slot: str  # 'breakfast', 'lunch', or 'dinner'
 
 
 class RestockRequest(BaseModel):
@@ -1073,6 +1155,129 @@ def api_cook_day(body: CookRequest):
     payload = latest_plan_payload()
     payload["deducted"] = deducted
     payload["inventory"] = get_inventory()
+    return payload
+
+
+@app.post("/api/plan/swap-meal")
+def api_swap_meal(body: SwapMealRequest, request: Request):
+    """Swap out a single meal slot using ONLY available on-hand ingredients.
+
+    Calculates remaining on-hand inventory (total inventory minus committed
+    deductions for other meals in the week), and requests a replacement meal
+    from the Milestone 5 AI provider chain. If no compliant on-hand meal is
+    found, leaves original meal untouched and returns friendly message.
+    """
+    keys = require_ai_keys(request)
+    plan_id, _created_at, plan = get_latest_plan()
+    if plan_id is None or plan is None:
+        raise HTTPException(status_code=404, detail="No plan generated yet.")
+
+    menu = plan.get("menu", [])
+    if body.day_index < 0 or body.day_index >= len(menu):
+        raise HTTPException(status_code=400, detail=f"day_index out of range: {body.day_index}")
+
+    slot = body.meal_slot.lower().strip()
+    if slot not in ("breakfast", "lunch", "dinner"):
+        raise HTTPException(status_code=400, detail=f"Invalid meal slot: {body.meal_slot}")
+
+    day_obj = menu[body.day_index]
+    current_meal = day_obj.get(slot)
+    if not current_meal or not isinstance(current_meal, dict):
+        raise HTTPException(status_code=400, detail=f"No meal found in {day_obj.get('day')} {slot}")
+
+    current_dish_name = current_meal.get("dish_name", "")
+    headcount = day_obj.get("headcount", 2)
+    settings = get_settings()
+
+    # 1. Collect all other meals planned across the week to avoid duplicates
+    other_meals = []
+    for d_idx, d in enumerate(menu):
+        for s in ("breakfast", "lunch", "dinner"):
+            if d_idx == body.day_index and s == slot:
+                continue
+            m = d.get(s)
+            if m and isinstance(m, dict) and m.get("dish_name"):
+                other_meals.append(m["dish_name"])
+
+    # 2. Compute committed inventory usage by all other meals/days
+    committed: Dict[int, float] = {}
+    for d_idx, d in enumerate(menu):
+        if d_idx != body.day_index:
+            for ing in d.get("ingredients_to_deduct", []):
+                inv_id = ing.get("inventory_id")
+                amt = float(ing.get("amount_used", 0.0))
+                if inv_id is not None and amt > 0:
+                    committed[inv_id] = committed.get(inv_id, 0.0) + amt
+
+    # 3. Calculate remaining on-hand inventory
+    all_inv = get_inventory()
+    available_inv = []
+    for item in all_inv:
+        item_id = item["id"]
+        total_qty = float(item.get("quantity") or 0.0)
+        rem_qty = round(total_qty - committed.get(item_id, 0.0), 2)
+        if rem_qty > 0.01:
+            available_inv.append({
+                "id": item_id,
+                "location": item.get("location"),
+                "item_name": item.get("item_name"),
+                "category": item.get("category"),
+                "quantity": rem_qty,
+                "unit": item.get("unit"),
+            })
+
+    if not available_inv:
+        return {
+            "success": False,
+            "message": "Nothing else on hand fits this slot",
+            "plan_id": plan_id,
+            "plan": plan,
+            "served_by": "",
+        }
+
+    # 4. Route AI call through Milestone 5 fallback chain
+    swap_res, served_by = ai_call(
+        swap_single_meal,
+        keys,
+        available_inv,
+        slot,
+        current_dish_name,
+        other_meals,
+        headcount,
+        settings,
+    )
+
+    if not swap_res.found or not swap_res.dish_name:
+        msg = swap_res.reason_if_not_found or "Nothing else on hand fits this slot"
+        return {
+            "success": False,
+            "message": msg,
+            "plan_id": plan_id,
+            "plan": plan,
+            "served_by": served_by,
+        }
+
+    # 5. Apply the replacement to target slot
+    new_meal = {
+        "dish_name": swap_res.dish_name,
+        "prep_steps": swap_res.prep_steps,
+        "cook_time_minutes": swap_res.cook_time_minutes,
+        "changed_from": current_dish_name,
+    }
+    day_obj[slot] = new_meal
+
+    # Append new ingredient deductions to the day
+    new_deductions = [i.model_dump() for i in swap_res.ingredients_used]
+    current_deductions = day_obj.get("ingredients_to_deduct", [])
+    day_obj["ingredients_to_deduct"] = current_deductions + new_deductions
+
+    # 6. Save updated plan to database
+    update_saved_plan(plan_id, plan)
+
+    payload = latest_plan_payload()
+    payload["success"] = True
+    payload["message"] = f"Changed {slot.capitalize()} to {swap_res.dish_name} (from: {current_dish_name})"
+    payload["served_by"] = served_by
     return payload
 
 
