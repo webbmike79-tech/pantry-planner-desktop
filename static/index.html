@@ -138,8 +138,23 @@
       <p class="form-msg" id="scan-msg" role="status"></p>
     </div>
 
-    <h2>📦 Kitchen Inventory</h2>
-    <div class="card">
+    <div class="inv-header-row">
+      <h2>📦 Kitchen Inventory</h2>
+      <div class="segmented inv-mode-toggle" id="inv-view-toggle">
+        <button id="mode-onhand-btn" class="active" type="button">📋 On Hand</button>
+        <button id="mode-edit-btn" type="button">✏️ Edit</button>
+      </div>
+    </div>
+
+    <!-- Mode 1: Dedicated Read-First "On Hand" View -->
+    <div id="on-hand-container">
+      <div id="on-hand-groups"></div>
+      <p class="empty-note" id="on-hand-empty">No items logged yet — take a shelf photo or tap Edit to add items.</p>
+    </div>
+
+    <!-- Mode 2: Editor View -->
+    <div class="card" id="inventory-editor-card" hidden>
+      <p class="hint" style="margin-top: 0; margin-bottom: 8px;">Edit item names, quantities, locations, or remove items:</p>
       <div id="inventory-list"></div>
       <p class="empty-note" id="inventory-empty">Nothing stocked yet — scan a shelf photo or add items by hand.</p>
       <div class="btn-row">

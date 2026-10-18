@@ -559,12 +559,131 @@ function inventoryRow(item) {
   return row;
 }
 
+let currentInvViewMode = "onhand"; // "onhand" | "edit"
+
+function setInventoryViewMode(mode) {
+  currentInvViewMode = mode;
+  const onhandContainer = $("#on-hand-container");
+  const editorCard = $("#inventory-editor-card");
+  const onhandBtn = $("#mode-onhand-btn");
+  const editBtn = $("#mode-edit-btn");
+
+  if (onhandBtn) onhandBtn.classList.toggle("active", mode === "onhand");
+  if (editBtn) editBtn.classList.toggle("active", mode === "edit");
+
+  if (onhandContainer) onhandContainer.hidden = (mode !== "onhand");
+  if (editorCard) editorCard.hidden = (mode !== "edit");
+}
+
+function jumpToInventoryEditor(targetItemName) {
+  setInventoryViewMode("edit");
+  if (!targetItemName) return;
+  // Find matching row in editor list and highlight/focus it
+  setTimeout(() => {
+    const rows = document.querySelectorAll(".inv-row");
+    for (const r of rows) {
+      const nameInput = r.querySelector(".inv-name");
+      if (nameInput && nameInput.value.toLowerCase().trim() === targetItemName.toLowerCase().trim()) {
+        r.scrollIntoView({ behavior: "smooth", block: "center" });
+        nameInput.focus();
+        r.style.outline = "2px solid var(--accent)";
+        setTimeout(() => { r.style.outline = ""; }, 1800);
+        break;
+      }
+    }
+  }, 50);
+}
+
+function renderOnHandView() {
+  const container = $("#on-hand-groups");
+  const emptyNote = $("#on-hand-empty");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!Array.isArray(state.inventory) || state.inventory.length === 0) {
+    if (emptyNote) emptyNote.style.display = "block";
+    return;
+  }
+  if (emptyNote) emptyNote.style.display = "none";
+
+  // Group definitions strictly covering Fridge / Freezer / Pantry-Cupboard
+  const groups = [
+    { key: "Fridge", label: "❄️ Fridge", matches: (loc) => (loc || "").toLowerCase().includes("fridge") },
+    { key: "Freezer", label: "🧊 Freezer", matches: (loc) => (loc || "").toLowerCase().includes("freezer") },
+    { key: "Cupboard / Pantry", label: "🥫 Pantry & Cupboard", matches: (loc) => !((loc || "").toLowerCase().includes("fridge") || (loc || "").toLowerCase().includes("freezer")) },
+  ];
+
+  for (const grp of groups) {
+    // Filter items belonging to this location
+    const items = state.inventory.filter((item) => grp.matches(item.location));
+    if (!items.length) continue;
+
+    // Sort alphabetically by item name
+    items.sort((a, b) => (a.item_name || "").localeCompare(b.item_name || "", undefined, { sensitivity: "base" }));
+
+    const grpCard = document.createElement("div");
+    grpCard.className = "onhand-group";
+    grpCard.dataset.location = grp.key;
+
+    const grpTitle = document.createElement("div");
+    grpTitle.className = "onhand-group-title";
+    grpTitle.innerHTML = `
+      <span>${grp.label}</span>
+      <span class="onhand-count-pill">${items.length} item${items.length === 1 ? "" : "s"}</span>
+    `;
+    grpCard.appendChild(grpTitle);
+
+    const listDiv = document.createElement("div");
+    listDiv.className = "onhand-list";
+
+    for (const item of items) {
+      const itemRow = document.createElement("div");
+      itemRow.className = "onhand-item";
+      itemRow.title = `Tap to edit ${item.item_name}`;
+
+      const isOut = (item.quantity == null || Number(item.quantity) <= 0);
+      const qtyDisplay = isOut
+        ? `<span class="onhand-qty out">out</span>`
+        : `<span class="onhand-qty">${item.quantity} ${esc(item.unit || "count")}</span>`;
+
+      const catDisplay = item.category ? `<span class="onhand-item-cat">• ${esc(item.category)}</span>` : "";
+      const queuedBadge = item._isQueued ? ' <span class="badge-queued">Queued</span>' : "";
+
+      itemRow.innerHTML = `
+        <div class="onhand-item-left">
+          <span class="onhand-item-name">${esc(item.item_name)}</span>
+          ${catDisplay}
+          ${queuedBadge}
+        </div>
+        <div class="onhand-item-right">
+          ${qtyDisplay}
+          <span class="onhand-edit-hint">✏️</span>
+        </div>
+      `;
+
+      itemRow.addEventListener("click", () => {
+        jumpToInventoryEditor(item.item_name);
+      });
+
+      listDiv.appendChild(itemRow);
+    }
+
+    grpCard.appendChild(listDiv);
+    container.appendChild(grpCard);
+  }
+}
+
 function renderInventory() {
   const list = $("#inventory-list");
-  list.innerHTML = "";
-  if (!Array.isArray(state.inventory)) state.inventory = [];
-  state.inventory.forEach((item) => list.appendChild(inventoryRow(item)));
-  $("#inventory-empty").style.display = state.inventory.length ? "none" : "block";
+  if (list) {
+    list.innerHTML = "";
+    if (!Array.isArray(state.inventory)) state.inventory = [];
+    state.inventory.forEach((item) => list.appendChild(inventoryRow(item)));
+  }
+  const invEmpty = $("#inventory-empty");
+  if (invEmpty) invEmpty.style.display = state.inventory.length ? "none" : "block";
+
+  renderOnHandView();
   renderStatus();
 }
 
@@ -1389,6 +1508,15 @@ function init() {
   });
   wirePhotoInput($("#scan-file"), $("#scan-file-name"), $("#scan-preview"), $("#scan-btn"));
   $("#scan-btn").addEventListener("click", scanShelfPhoto);
+
+  const modeOnHandBtn = $("#mode-onhand-btn");
+  if (modeOnHandBtn) {
+    modeOnHandBtn.addEventListener("click", () => setInventoryViewMode("onhand"));
+  }
+  const modeEditBtn = $("#mode-edit-btn");
+  if (modeEditBtn) {
+    modeEditBtn.addEventListener("click", () => setInventoryViewMode("edit"));
+  }
 
   $("#inv-add-btn").addEventListener("click", showAddItemModal);
   $("#add-item-confirm-btn").addEventListener("click", submitAddItem);
