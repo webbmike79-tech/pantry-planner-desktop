@@ -382,6 +382,18 @@ def validate_provider_key(provider: str, api_key: str) -> Tuple[bool, str]:
             resp = requests.post(url, headers=headers, json=payload, timeout=15.0)
             if resp.status_code == 401:
                 return False, "Groq rejected the API key (401 Unauthorized)."
+            if resp.status_code == 200:
+                return True, "Groq key works!"
+            # If the model is not accessible or returns another status, check /models to verify key validity
+            models_resp = requests.get(
+                f"{GROQ_BASE_URL.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=15.0,
+            )
+            if models_resp.status_code == 401:
+                return False, "Groq rejected the API key (401 Unauthorized)."
+            if models_resp.status_code == 200:
+                return True, "Groq key works!"
             resp.raise_for_status()
             return True, "Groq key works!"
 
@@ -401,6 +413,27 @@ def validate_provider_key(provider: str, api_key: str) -> Tuple[bool, str]:
             resp = requests.post(url, headers=headers, json=payload, timeout=15.0)
             if resp.status_code == 401:
                 return False, "OpenRouter rejected the API key (401 Unauthorized)."
+            if resp.status_code == 200:
+                return True, "OpenRouter key works!"
+            # If model endpoint is unavailable, verify key directly via auth/key or models
+            auth_resp = requests.get(
+                f"{OPENROUTER_BASE_URL.rstrip('/')}/auth/key",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=15.0,
+            )
+            if auth_resp.status_code == 401:
+                return False, "OpenRouter rejected the API key (401 Unauthorized)."
+            if auth_resp.status_code == 200:
+                return True, "OpenRouter key works!"
+            models_resp = requests.get(
+                f"{OPENROUTER_BASE_URL.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=15.0,
+            )
+            if models_resp.status_code == 401:
+                return False, "OpenRouter rejected the API key (401 Unauthorized)."
+            if models_resp.status_code == 200:
+                return True, "OpenRouter key works!"
             resp.raise_for_status()
             return True, "OpenRouter key works!"
 
