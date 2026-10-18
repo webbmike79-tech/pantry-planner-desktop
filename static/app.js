@@ -412,7 +412,7 @@ function renderShopping() {
   $("#shopping-empty").style.display = items.length ? "none" : "block";
   $("#shopping-empty").textContent = state.plan
     ? "🎉 Your kitchen inventory covers the entire week's menu!"
-    : "Generate a weekly menu first to populate your shopping list.";
+    : "No menu planned yet — your shopping list will build from your plan.";
 
   const cats = [...new Set(items.map((i) => i.category || "General"))].sort();
   cats.forEach((cat) => {
