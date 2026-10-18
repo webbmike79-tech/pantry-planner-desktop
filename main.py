@@ -675,6 +675,15 @@ def update_saved_plan(plan_id: int, plan_dict: dict):
     conn.close()
 
 
+def clear_saved_plans():
+    """Delete all rows from saved_plans, completely clearing the current menu and shopping list."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM saved_plans")
+    conn.commit()
+    conn.close()
+
+
 
 # ==========================================
 # GEMINI AI FUNCTIONS (ported from app.py)
@@ -1140,6 +1149,13 @@ def api_generate_plan(body: GeneratePlanRequest, request: Request):
 
 @app.get("/api/plan/latest")
 def api_latest_plan():
+    return latest_plan_payload()
+
+
+@app.delete("/api/plan")
+def api_clear_plan():
+    """Clear the active menu plan and derived shopping list without touching inventory or settings."""
+    clear_saved_plans()
     return latest_plan_payload()
 
 

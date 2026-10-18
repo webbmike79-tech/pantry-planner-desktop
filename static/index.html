@@ -100,6 +100,19 @@
   </div>
 </div>
 
+<!-- ===== Clear Menu Confirmation Modal ===== -->
+<div id="clear-menu-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">🗑️</div>
+    <h2 id="clear-menu-title">Start over with a fresh menu?</h2>
+    <p id="clear-menu-body" class="hint" style="margin: 12px 0 20px; line-height: 1.5;">This clears your current 7-day menu and the shopping list built from it. Your stocked inventory, receipts, and settings stay exactly as they are.</p>
+    <div class="btn-row" style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button id="clear-menu-cancel-btn" class="btn btn-ghost" type="button">Keep my menu</button>
+      <button id="clear-menu-confirm-btn" class="btn btn-danger" type="button">Clear it</button>
+    </div>
+  </div>
+</div>
+
 <header class="app-header">
   <div class="header-top">
     <h1>🥘 Pantry Planner</h1>
@@ -268,7 +281,10 @@
   <!-- ===== Tab 3: Weekly Menu ===== -->
   <section id="tab-menu" class="tab-page">
     <h2>📅 7-Day Menu &amp; Recipes</h2>
-    <button id="generate-btn" class="btn btn-primary btn-big">🚀 Generate 7-Day Menu &amp; Recipes</button>
+    <div class="menu-actions-row" style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
+      <button id="generate-btn" class="btn btn-primary btn-big" style="flex: 1;">🚀 Generate 7-Day Menu &amp; Recipes</button>
+      <button id="clear-menu-btn" class="btn btn-danger" type="button" style="display: none;">🗑️ Clear menu</button>
+    </div>
     <p class="form-msg" id="menu-msg" role="status"></p>
     <p class="hint" id="plan-meta"></p>
     <div id="nutrition-notes" class="info-box" hidden></div>

@@ -451,6 +451,38 @@ function hideAddItemModal() {
   if (modal) modal.hidden = true;
 }
 
+function showClearMenuModal() {
+  const modal = $("#clear-menu-modal");
+  if (modal) modal.hidden = false;
+}
+
+function hideClearMenuModal() {
+  const modal = $("#clear-menu-modal");
+  if (modal) modal.hidden = true;
+}
+
+async function confirmClearMenu() {
+  hideClearMenuModal();
+  if (isOnline()) {
+    try {
+      await api("/api/plan", { method: "DELETE" });
+    } catch (e) {
+      console.warn("Failed clearing server plan:", e);
+      toast("Could not reach server to clear menu: " + e.message);
+      return;
+    }
+  }
+  state.planId = null;
+  state.planCreatedAt = null;
+  state.plan = null;
+  localStorage.removeItem(CACHE_PLAN_STORAGE);
+
+  renderMenu();
+  renderShopping();
+  renderStatus();
+  toast("Menu cleared — start fresh anytime! 🧹");
+}
+
 function requireKey() {
   // Key ownership rule: when connected to a server, all AI calls are served by the
   // server's configured keys. A connected client never prompts for, requires, or blocks on keys.
@@ -902,6 +934,8 @@ function renderMenu() {
   wrap.innerHTML = "";
   const has = !!(state.plan && (state.plan.menu || []).length);
   $("#menu-empty").style.display = has ? "none" : "block";
+  const clearBtn = $("#clear-menu-btn");
+  if (clearBtn) clearBtn.style.display = has ? "inline-block" : "none";
   $("#plan-meta").textContent = has ? `Plan generated: ${state.planCreatedAt}` : "";
   const notes = $("#nutrition-notes");
   if (has && state.plan.nutrition_notes) {
@@ -1710,6 +1744,12 @@ function init() {
 
   /* Menu tab */
   $("#generate-btn").addEventListener("click", generatePlan);
+  const clearMenuBtn = $("#clear-menu-btn");
+  if (clearMenuBtn) clearMenuBtn.addEventListener("click", showClearMenuModal);
+  const cancelClearBtn = $("#clear-menu-cancel-btn");
+  if (cancelClearBtn) cancelClearBtn.addEventListener("click", hideClearMenuModal);
+  const confirmClearBtn = $("#clear-menu-confirm-btn");
+  if (confirmClearBtn) confirmClearBtn.addEventListener("click", confirmClearMenu);
 
   /* Shopping tab */
   $("#restock-btn").addEventListener("click", restock);
