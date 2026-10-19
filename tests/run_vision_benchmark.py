@@ -220,11 +220,18 @@ def run_benchmark_for_provider(provider: str, port: int = 8002) -> Dict[str, Any
             fname = entry["filename"]
             loc = entry["location"]
             gt = entry["ground_truth"]
-            photo_path = FIXTURES_DIR / fname
+            photo_candidates = [
+                FIXTURES_DIR / fname,
+                Path(r"C:\Users\ekim_\Downloads\pantry test pics") / fname,
+                FIXTURES_DIR / entry.get("camera_filename", ""),
+                Path(r"C:\Users\ekim_\Downloads\pantry test pics") / entry.get("camera_filename", ""),
+            ]
+            photo_path = next((p for p in photo_candidates if p and p.is_file()), None)
 
-            if not photo_path.is_file():
-                print(f"WARNING: Fixture file {photo_path} does not exist. Skipping.")
+            if not photo_path:
+                print(f"WARNING: Fixture file {fname} not found in candidates. Skipping.")
                 continue
+
 
             detected_names = []
             for attempt in range(1, 4):

@@ -1,7 +1,8 @@
 {
   "spice_rack": {
     "location": "Cupboard / Pantry",
-    "filename": "20261018_182811.jpg",
+    "filename": "879_23_t1ce (1).jpg",
+    "camera_filename": "20261018_182811.jpg",
     "ground_truth": [
       "Slap Ya Mama Cajun Seasoning",
       "Taj\u00edn",
@@ -20,7 +21,8 @@
   },
   "pantry": {
     "location": "Cupboard / Pantry",
-    "filename": "20261018_182817.jpg",
+    "filename": "880_24_bwtv.jpg",
+    "camera_filename": "20261018_182817.jpg",
     "ground_truth": [
       "Clabber Girl Baking Powder",
       "Del Monte Pickled Beets",
@@ -54,7 +56,8 @@
   },
   "fridge": {
     "location": "Fridge",
-    "filename": "20261018_182847.jpg",
+    "filename": "881_25_coyv.jpg",
+    "camera_filename": "20261018_182847.jpg",
     "ground_truth": [
       "Heinz Tomato Ketchup",
       "Premier Protein Shakes",
@@ -71,7 +74,8 @@
   },
   "fridge_door": {
     "location": "Fridge",
-    "filename": "20261018_182856.jpg",
+    "filename": "882_26_umy5.jpg",
+    "camera_filename": "20261018_182856.jpg",
     "ground_truth": [
       "Mrs. Renfro's Ghost Pepper Salsa",
       "Louisiana Tartar Sauce",
@@ -88,7 +92,8 @@
   },
   "freezer": {
     "location": "Freezer",
-    "filename": "20261018_182909.jpg",
+    "filename": "883_27_s2ng.jpg",
+    "camera_filename": "20261018_182909.jpg",
     "ground_truth": [
       "Corn on the Cob",
       "Mixed Vegetables",
