@@ -109,9 +109,9 @@ class TestPayloadCompaction(unittest.TestCase):
             captured_prompt = mock_gen.call_args[0][1]
 
         # Extract embedded inventory JSON from the prompt
-        marker_start = "CURRENT KITCHEN INVENTORY (Cupboard, Fridge, Freezer):\n    "
-        self.assertIn("CURRENT KITCHEN INVENTORY (Cupboard, Fridge, Freezer):", captured_prompt)
-        start_idx = captured_prompt.find("CURRENT KITCHEN INVENTORY (Cupboard, Fridge, Freezer):") + len(marker_start)
+        marker_start = "CURRENT KITCHEN INVENTORY (keys: n=item_name, q=quantity, u=unit, l=location, c=category):\n    "
+        self.assertIn("CURRENT KITCHEN INVENTORY (keys: n=item_name, q=quantity, u=unit, l=location, c=category):", captured_prompt)
+        start_idx = captured_prompt.find("CURRENT KITCHEN INVENTORY (keys: n=item_name, q=quantity, u=unit, l=location, c=category):") + len(marker_start)
         end_idx = captured_prompt.find("DAILY HEADCOUNT SCHEDULE")
         self.assertGreater(end_idx, start_idx)
         embedded_str = captured_prompt[start_idx:end_idx].strip()
@@ -120,7 +120,7 @@ class TestPayloadCompaction(unittest.TestCase):
         parsed_items = json.loads(embedded_str)
         self.assertEqual(len(parsed_items), 128)
 
-        # Assertion (a): no id or timestamp in embedded string
+        # Assertion (a): no id or timestamp in embedded string, shipped abbreviated keys present
         for item in parsed_items:
             self.assertNotIn("id", item)
             self.assertNotIn("household_id", item)
@@ -128,7 +128,7 @@ class TestPayloadCompaction(unittest.TestCase):
             self.assertNotIn("updated_at", item)
             self.assertEqual(
                 sorted(item.keys()),
-                sorted(["item_name", "quantity", "unit", "location", "category"])
+                sorted(["n", "q", "u", "l", "c"])
             )
         self.assertNotIn("2026-10-19", embedded_str)
         self.assertNotIn('"created_at"', embedded_str)
@@ -146,11 +146,11 @@ class TestPayloadCompaction(unittest.TestCase):
             f"Compacted size ({compact_bytes} bytes) is {ratio:.1%} of old full indented ({old_bytes} bytes), expected <= 45%"
         )
 
-        # Assertion (c): all 128 item names survive in the embedded string
+        # Assertion (c): all 128 item names survive in the embedded string under 'n'
         for i, rec in enumerate(self.full_records):
             expected_name = rec["item_name"]
             self.assertIn(expected_name, embedded_str)
-            self.assertEqual(parsed_items[i]["item_name"], expected_name)
+            self.assertEqual(parsed_items[i]["n"], expected_name)
 
 
 if __name__ == "__main__":

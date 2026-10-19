@@ -1041,9 +1041,16 @@ def generate_weekly_menu_and_list(
     if inventory_df.empty:
         inv_records = []
     else:
-        inv_records = inventory_df[
-            ["item_name", "quantity", "unit", "location", "category"]
-        ].to_dict(orient="records")
+        inv_records = [
+            {
+                "n": r.get("item_name") or r.get("n", ""),
+                "q": r.get("quantity") if "quantity" in r else r.get("q", 0.0),
+                "u": r.get("unit") or r.get("u", ""),
+                "l": r.get("location") or r.get("l", ""),
+                "c": r.get("category") or r.get("c", ""),
+            }
+            for _, r in inventory_df.iterrows()
+        ]
 
     rel_presets = settings.get("religious_presets", [])
     rel_section = build_religious_diet_prompt_section(rel_presets)
@@ -1052,7 +1059,7 @@ def generate_weekly_menu_and_list(
     Build a practical, delicious 7-day meal plan and a consolidated shopping list.
     Current Season/Holiday Context: {active_theme}
 
-    CURRENT KITCHEN INVENTORY (Cupboard, Fridge, Freezer):
+    CURRENT KITCHEN INVENTORY (keys: n=item_name, q=quantity, u=unit, l=location, c=category):
     {json.dumps(inv_records, separators=(',', ':'))}
 
     DAILY HEADCOUNT SCHEDULE (Scale portion sizes and ingredient math to match each day):
