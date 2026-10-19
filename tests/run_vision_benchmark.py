@@ -25,23 +25,30 @@ FIXTURES_DIR = ROOT_DIR / "tests" / "fixtures" / "vision"
 MANIFEST_FILE = FIXTURES_DIR / "ground_truth.json"
 
 
+import unicodedata
+
+def strip_accents(text: str) -> str:
+    """Strip accents and diacritics from text so 'Tajín' matches 'Tajin'."""
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+
+
 def normalize_words(text: str) -> Set[str]:
     """Tokenize text into lowercase alphanumeric words, filtering out container units and non-identifying generic words."""
-
+    clean = strip_accents(text.lower())
     stop = {
         "a", "an", "the", "in", "with", "of", "and", "or", "for",
         "box", "can", "cans", "bag", "bags", "package", "pack", "tub", "bottle", "jar",
         "container", "cup", "cups", "sliced", "diced", "chunks", "packets", "loaf",
         "frozen", "unidentified", "item", "items", "food", "seasoning", "mccormick"
     }
-    words = set(re.findall(r"[a-z0-9]+", text.lower()))
+    words = set(re.findall(r"[a-z0-9]+", clean))
     return {w for w in words if w not in stop}
 
 
 def is_match(detected_name: str, gt_name: str) -> bool:
     """Check if detected name matches ground truth item (brand-less matches count)."""
-    d_norm = detected_name.lower().strip()
-    g_norm = gt_name.lower().strip()
+    d_norm = strip_accents(detected_name.lower().strip())
+    g_norm = strip_accents(gt_name.lower().strip())
 
     if d_norm == g_norm:
         return True
@@ -74,6 +81,102 @@ def is_match(detected_name: str, gt_name: str) -> bool:
     return False
 
 
+HONEST_UNKNOWN_PATTERNS = [
+    r"\bunidentified\b",
+    r"\bclear bag\b",
+    r"\bfoil-wrapped\b",
+    r"\bfoil wrapped\b",
+    r"\bopaque (container|bag|package|bottle|item|tub|wrap)\b",
+    r"\bplastic (container|bag|wrap)\b",
+    r"\bfood in plastic container\b",
+    r"\bwhite container\b",
+    r"\bbagged item\b",
+    r"\bfrosted (bag|package|container|item)\b",
+    r"\bfrost-covered\b",
+    r"\bsealed (bag|package|container|item)\b",
+    r"\bwrapped (package|item|food)\b",
+]
+
+KNOWN_BRANDS = {
+    "eggo", "pretzel crisps", "duke's", "dukes", "fire & smoke society", "adams",
+    "mccormick grill mates", "taj pel", "sargento", "jimmy dean", "tyson",
+    "stouffer's", "birds eye", "green giant", "ore-ida", "gorton's", "pillsbury",
+    "hunt's", "del monte", "barilla", "kraft", "heinz", "french's", "hellmann's",
+    "bush's", "knorr", "progresso", "swanson", "v8", "jif", "skippy", "smucker's",
+    "quaker", "kellogg's", "dole", "chobani", "tillamook", "kerrygold", "daisy",
+    "philadelphia", "oscar mayer", "hormel", "hillshire", "hebrew national",
+    "nathan's", "johnsonville", "applegate", "perdue", "butterball", "goya",
+    "la costena", "la costeña", "old el paso", "ortega", "pace", "tostitos",
+    "doritos", "lay's", "ruffles", "fritos", "cheetos", "pringles", "ritz",
+    "wheat thins", "triscuit", "cheez-it", "goldfish", "oreo", "chips ahoy",
+    "keebler", "pepperidge farm", "hostess", "sara lee", "thomas'", "wonder",
+    "bimbo", "arnold", "nature's own", "dave's killer bread", "king's hawaiian",
+    "mission", "guerrero", "amy's", "annie's", "kashi", "kind", "clif",
+    "rxbar", "larabar", "nature valley", "gatorade", "powerade", "snapple",
+    "arizona", "tropicana", "minute maid", "simply", "ocean spray", "welch's",
+    "silk", "almond breeze", "oatly", "califia", "fairlife", "horizon",
+    "stonyfield", "siggi's", "noosa", "two good", "oikos", "dannon", "breyers",
+    "ben & jerry's", "haagen-dazs", "talenti", "blue bell", "edy's", "dreyer's",
+    "drumstick", "klondike", "popsicle", "outshine", "hot pockets", "lean cuisine",
+    "marie callender's", "banquet", "hungry-man", "healthy choice", "smart ones",
+    "boston market", "bertolli", "rao's", "classico", "newman's own", "ken's",
+    "wish-bone", "hidden valley", "good seasons", "lawry's", "old bay",
+    "tony chachere's", "zatarain's", "badia", "morton", "diamond crystal",
+    "spice islands", "simply organic", "frontier co-op", "trader joe's", "kirkland"
+}
+
+CONFABULATED_SPECIES = {
+    "pheasant", "venison", "quail", "grouse", "squab", "pigeon", "goose", "duck",
+    "bison", "elk", "boar", "rabbit", "hare", "goat", "mutton", "veal", "octopus",
+    "squid", "calamari", "eel", "crawfish", "crayfish", "lobster", "crab", "oyster",
+    "mussel", "clam", "scallop", "anchovy", "sardine", "trout", "halibut", "cod",
+    "snapper", "mahi mahi", "bass", "flounder", "sole", "catfish", "tilapia",
+    "haddock", "pollock", "swordfish", "tuna", "salmon"
+}
+
+
+def classify_invented_item(item_name: str, ground_truth: List[str] = None) -> str:
+    """Classify an unmatched detected item into CONFABULATED, HONEST-UNKNOWN, or UNMATCHED-SPECIFIC."""
+    norm = item_name.strip()
+    lower = strip_accents(norm.lower())
+
+    # 1. HONEST-UNKNOWN: explicitly honest descriptions of unidentifiable/ambiguous items
+    for pat in HONEST_UNKNOWN_PATTERNS:
+        if re.search(pat, lower):
+            return "HONEST-UNKNOWN"
+
+    # 2. CONFABULATED: claims specific brand, product line, or species with no match in manifest
+    words = set(re.findall(r"[a-z0-9]+", lower))
+    if any(sp in words for sp in CONFABULATED_SPECIES):
+        gt_words = set()
+        if ground_truth:
+            for g in ground_truth:
+                gt_words.update(re.findall(r"[a-z0-9]+", strip_accents(g.lower())))
+        species_in_gt = any(sp in gt_words for sp in (words & CONFABULATED_SPECIES))
+        if not species_in_gt:
+            return "CONFABULATED"
+
+    # Check known brands
+    for brand in KNOWN_BRANDS:
+        if brand in lower or brand.replace("'", "") in lower.replace("'", ""):
+            if not ground_truth or not any(brand in strip_accents(g.lower()) for g in ground_truth):
+                return "CONFABULATED"
+
+    # Possessive brand names (e.g., Duke's, Lola's)
+    possessives = re.findall(r"\b([a-z]+'s)\b", lower)
+    if possessives:
+        gt_lower = " ".join(ground_truth).lower() if ground_truth else ""
+        if any(p not in gt_lower for p in possessives):
+            return "CONFABULATED"
+
+    # Multi-word proper name / brand patterns e.g. "Taj Pel", "Fire & Smoke Society"
+    if "taj pel" in lower or "fire & smoke" in lower or "&" in norm:
+        return "CONFABULATED"
+
+    # 3. UNMATCHED-SPECIFIC: specific food names that don't match manifest but aren't clearly confabulated brands
+    return "UNMATCHED-SPECIFIC"
+
+
 def score_photo_results(
     photo_key: str,
     detected_items: List[str],
@@ -97,8 +200,12 @@ def score_photo_results(
 
     # Invented: detected items that had no match with any ground truth item (deduplicated)
     invented_all = [d for d in detected_items if d not in matched_detected]
-    # Unique invented items preserve first seen order
     unique_invented = list(dict.fromkeys(invented_all))
+
+    # Classify invented items into 3 reported classes
+    confabulated = [d for d in unique_invented if classify_invented_item(d, ground_truth) == "CONFABULATED"]
+    honest_unknown = [d for d in unique_invented if classify_invented_item(d, ground_truth) == "HONEST-UNKNOWN"]
+    unmatched_specific = [d for d in unique_invented if classify_invented_item(d, ground_truth) == "UNMATCHED-SPECIFIC"]
 
     # Missed: ground truth items not matched
     missed = [gt for gt in ground_truth if gt not in matched_gt]
@@ -111,6 +218,12 @@ def score_photo_results(
         "missed_count": len(missed),
         "invented_count": len(unique_invented),
         "invented_items": unique_invented,
+        "confabulated_count": len(confabulated),
+        "confabulated_items": confabulated,
+        "honest_unknown_count": len(honest_unknown),
+        "honest_unknown_items": honest_unknown,
+        "unmatched_specific_count": len(unmatched_specific),
+        "unmatched_specific_items": unmatched_specific,
         "missed_items": missed,
         "matches": matches,
     }
@@ -275,36 +388,53 @@ def run_benchmark_for_provider(provider: str, port: int = 8002) -> Dict[str, Any
 
 
 def print_benchmark_table(provider: str, run_data: Dict[str, Any]) -> None:
-    """Print markdown benchmark table and itemized list of invented items."""
+    """Print markdown benchmark table reporting all 3 classes: Confabulated, Honest-Unknown, Unmatched-Specific."""
     results = run_data.get("results", {})
     if not results:
         print("No results to display.")
         return
 
-    print(f"\n### {provider.upper()} Vision Benchmark Results")
-    print("| Photo Fixture | Ground Truth | Matched | Missed | Invented | Invented Items |")
-    print("| :--- | :---: | :---: | :---: | :---: | :--- |")
+    print(f"\n### {provider.upper()} Vision Benchmark Results (Honest Classifier)")
+    print("| Photo Fixture | Ground Truth | Matched | Missed | Confabulated | Honest-Unknown | Unmatched-Specific | Total Invented | Details / Breakdown |")
+    print("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |")
 
     tot_gt = 0
     tot_matched = 0
     tot_missed = 0
+    tot_confab = 0
+    tot_honest = 0
+    tot_unmatched_spec = 0
     tot_invented = 0
 
     for key, sc in results.items():
-        gt_len = sc["total_ground_truth"]
-        matched = sc["matched_count"]
-        missed = sc["missed_count"]
-        inv_cnt = sc["invented_count"]
-        inv_names = ", ".join(sc["invented_items"]) if sc["invented_items"] else "—"
+        gt_len = sc.get("total_ground_truth", 0)
+        matched = sc.get("matched_count", 0)
+        missed = sc.get("missed_count", 0)
+        confab = sc.get("confabulated_count", len(sc.get("confabulated_items", [])))
+        honest = sc.get("honest_unknown_count", len(sc.get("honest_unknown_items", [])))
+        unmatched_spec = sc.get("unmatched_specific_count", len(sc.get("unmatched_specific_items", [])))
+        inv_cnt = sc.get("invented_count", 0)
+
+        details = []
+        if sc.get("confabulated_items"):
+            details.append(f"Confab: {', '.join(sc['confabulated_items'])}")
+        if sc.get("honest_unknown_items"):
+            details.append(f"Honest: {', '.join(sc['honest_unknown_items'])}")
+        if sc.get("unmatched_specific_items"):
+            details.append(f"Unmatched-Spec: {', '.join(sc['unmatched_specific_items'])}")
+        detail_str = "; ".join(details) if details else "—"
 
         tot_gt += gt_len
         tot_matched += matched
         tot_missed += missed
+        tot_confab += confab
+        tot_honest += honest
+        tot_unmatched_spec += unmatched_spec
         tot_invented += inv_cnt
 
-        print(f"| `{key}` | {gt_len} | {matched} | {missed} | {inv_cnt} | {inv_names} |")
+        print(f"| `{key}` | {gt_len} | {matched} | {missed} | {confab} | {honest} | {unmatched_spec} | {inv_cnt} | {detail_str} |")
 
-    print(f"| **TOTALS** | **{tot_gt}** | **{tot_matched}** | **{tot_missed}** | **{tot_invented}** | |")
+    print(f"| **TOTALS** | **{tot_gt}** | **{tot_matched}** | **{tot_missed}** | **{tot_confab}** | **{tot_honest}** | **{tot_unmatched_spec}** | **{tot_invented}** | |")
     print()
 
 

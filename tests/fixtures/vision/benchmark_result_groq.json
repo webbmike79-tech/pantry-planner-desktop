@@ -1,16 +1,16 @@
 {
   "status": "completed",
   "provider": "groq",
+  "run_label": "Run 2 (Official pantry test pics)",
   "results": {
     "spice_rack": {
       "photo_key": "spice_rack",
       "total_detected": 19,
       "total_ground_truth": 13,
-      "matched_count": 7,
-      "missed_count": 6,
-      "invented_count": 7,
+      "matched_count": 8,
+      "missed_count": 5,
+      "invented_count": 6,
       "invented_items": [
-        "Tajin Cl\u00e1sico Seasoning",
         "Fire & Smoke Society Seasoning",
         "Adams Seasoning",
         "McCormick Grill Mates Herb Seasoning",
@@ -18,8 +18,22 @@
         "Duke's Hot Sauce",
         "Unidentified seasoning packets"
       ],
+      "confabulated_count": 4,
+      "confabulated_items": [
+        "Fire & Smoke Society Seasoning",
+        "Adams Seasoning",
+        "McCormick Grill Mates Herb Seasoning",
+        "Duke's Hot Sauce"
+      ],
+      "honest_unknown_count": 1,
+      "honest_unknown_items": [
+        "Unidentified seasoning packets"
+      ],
+      "unmatched_specific_count": 1,
+      "unmatched_specific_items": [
+        "Tomato Seasoning"
+      ],
       "missed_items": [
-        "Taj\u00edn",
         "Taco Seasoning packets",
         "Pinto Bean Seasoning",
         "Bay Leaves",
@@ -74,6 +88,10 @@
         [
           "Red Chili Flakes",
           "Crushed Red Pepper"
+        ],
+        [
+          "Tajin Cl\u00e1sico Seasoning",
+          "Taj\u00edn"
         ]
       ]
     },
@@ -85,6 +103,12 @@
       "missed_count": 11,
       "invented_count": 0,
       "invented_items": [],
+      "confabulated_count": 0,
+      "confabulated_items": [],
+      "honest_unknown_count": 0,
+      "honest_unknown_items": [],
+      "unmatched_specific_count": 0,
+      "unmatched_specific_items": [],
       "missed_items": [
         "Tteokbokki cups",
         "Campbell's Soup",
@@ -271,7 +295,7 @@
     },
     "fridge": {
       "photo_key": "fridge",
-      "total_detected": 11,
+      "total_detected": 10,
       "total_ground_truth": 11,
       "matched_count": 6,
       "missed_count": 5,
@@ -282,6 +306,18 @@
         "Unidentified food in plastic container",
         "Unidentified bagged item"
       ],
+      "confabulated_count": 1,
+      "confabulated_items": [
+        "Pretzel Crisps"
+      ],
+      "honest_unknown_count": 3,
+      "honest_unknown_items": [
+        "Unidentified white container",
+        "Unidentified food in plastic container",
+        "Unidentified bagged item"
+      ],
+      "unmatched_specific_count": 0,
+      "unmatched_specific_items": [],
       "missed_items": [
         "Premier Protein Shakes",
         "Pickled Vegetables",
@@ -324,6 +360,12 @@
       "missed_count": 8,
       "invented_count": 0,
       "invented_items": [],
+      "confabulated_count": 0,
+      "confabulated_items": [],
+      "honest_unknown_count": 0,
+      "honest_unknown_items": [],
+      "unmatched_specific_count": 0,
+      "unmatched_specific_items": [],
       "missed_items": [
         "Kraft Dressing",
         "Steak Sauce",
@@ -533,6 +575,23 @@
         "Unidentified Freezer Item 2",
         "Unidentified Freezer Item 3",
         "Unidentified Freezer Item 4"
+      ],
+      "confabulated_count": 1,
+      "confabulated_items": [
+        "Eggo Waffles"
+      ],
+      "honest_unknown_count": 4,
+      "honest_unknown_items": [
+        "Unidentified Freezer Item 1",
+        "Unidentified Freezer Item 2",
+        "Unidentified Freezer Item 3",
+        "Unidentified Freezer Item 4"
+      ],
+      "unmatched_specific_count": 3,
+      "unmatched_specific_items": [
+        "Frozen Spinach",
+        "Frozen Bread",
+        "Frozen Meat"
       ],
       "missed_items": [
         "Corn on the Cob",

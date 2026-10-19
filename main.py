@@ -1042,7 +1042,7 @@ def generate_weekly_menu_and_list(
         inv_records = []
     else:
         inv_records = inventory_df[
-            ["id", "location", "item_name", "category", "quantity", "unit"]
+            ["item_name", "quantity", "unit", "location", "category"]
         ].to_dict(orient="records")
 
     rel_presets = settings.get("religious_presets", [])
@@ -1053,7 +1053,7 @@ def generate_weekly_menu_and_list(
     Current Season/Holiday Context: {active_theme}
 
     CURRENT KITCHEN INVENTORY (Cupboard, Fridge, Freezer):
-    {json.dumps(inv_records, indent=2)}
+    {json.dumps(inv_records, separators=(',', ':'))}
 
     DAILY HEADCOUNT SCHEDULE (Scale portion sizes and ingredient math to match each day):
     {json.dumps(daily_headcounts, indent=2)}
