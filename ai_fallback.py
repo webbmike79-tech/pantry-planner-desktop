@@ -388,6 +388,7 @@ def generate_structured_with_fallback(
     if all_down and len(candidates) > 0:
         logger.info("All providers are marked DOWN in watchdog probe status; attempting all in normal order as fallback.")
 
+    chain_start = time.time()
     last_errors: List[str] = []
 
     for provider_name, api_key in candidates:
@@ -396,11 +397,18 @@ def generate_structured_with_fallback(
             logger.info("Skipping provider %s: latest probe state is DOWN (%s)", provider_name, reason)
             continue
 
-        logger.info("Attempting AI request for '%s' using provider: %s", what, provider_name)
+        active_model = models.get(
+            provider_name,
+            GEMINI_DEFAULT_MODEL if provider_name == "gemini" else (
+                GROQ_DEFAULT_MODEL if provider_name == "groq" else OPENROUTER_DEFAULT_MODEL
+            )
+        )
+        logger.info("Attempting AI request for '%s' using provider: %s (model: %s)", what, provider_name, active_model)
         is_primary = (provider_name == candidates[0][0])
         max_attempts = 2 if is_primary else 1
 
         for attempt in range(1, max_attempts + 1):
+            attempt_start = time.time()
             raw_text = ""
             try:
                 if provider_name == "gemini":
@@ -409,14 +417,14 @@ def generate_structured_with_fallback(
                         contents,
                         schema,
                         temperature,
-                        model=models.get("gemini", GEMINI_DEFAULT_MODEL),
+                        model=active_model,
                     )
                 elif provider_name == "groq":
                     messages = _build_openai_messages(contents, schema)
                     raw_text = _call_openai_compatible(
                         base_url=GROQ_BASE_URL,
                         api_key=api_key,
-                        model=models.get("groq", GROQ_DEFAULT_MODEL),
+                        model=active_model,
                         messages=messages,
                         temperature=temperature,
                     )
@@ -425,7 +433,7 @@ def generate_structured_with_fallback(
                     raw_text = _call_openai_compatible(
                         base_url=OPENROUTER_BASE_URL,
                         api_key=api_key,
-                        model=models.get("openrouter", OPENROUTER_DEFAULT_MODEL),
+                        model=active_model,
                         messages=messages,
                         temperature=temperature,
                         extra_headers={
@@ -435,6 +443,12 @@ def generate_structured_with_fallback(
                     )
 
                 if not raw_text or not raw_text.strip():
+                    duration_ms = int((time.time() - attempt_start) * 1000)
+                    outcome = "retryable-failure" if (is_primary and attempt < max_attempts) else "failure"
+                    logger.info(
+                        "AI attempt timing: action='%s' provider='%s' model='%s' attempt=%d duration_ms=%d outcome='%s'",
+                        what, provider_name, active_model, attempt, duration_ms, outcome
+                    )
                     logger.warning("Provider %s returned empty response for '%s'", provider_name, what)
                     last_errors.append(f"{provider_name}: empty response")
                     continue
@@ -442,18 +456,35 @@ def generate_structured_with_fallback(
                 cleaned_text = _clean_json_markdown(raw_text)
                 parsed = schema.model_validate_json(cleaned_text)
                 mark_provider_ok(provider_name, env=env)
+                duration_ms = int((time.time() - attempt_start) * 1000)
+                logger.info(
+                    "AI attempt timing: action='%s' provider='%s' model='%s' attempt=%d duration_ms=%d outcome='success'",
+                    what, provider_name, active_model, attempt, duration_ms
+                )
+                total_duration_ms = int((time.time() - chain_start) * 1000)
+                logger.info(
+                    "AI total timing: action='%s' duration_ms=%d outcome='success' served_by='%s'",
+                    what, total_duration_ms, provider_name
+                )
                 logger.info("Successfully served '%s' via provider: %s", what, provider_name)
                 return parsed, provider_name
 
             except Exception as exc:
+                duration_ms = int((time.time() - attempt_start) * 1000)
                 retryable, detail = _is_retryable_error(exc)
                 # Schema validation failure: treat as malformed JSON and retryable
                 if "validation" in str(type(exc)).lower() or "json" in str(type(exc)).lower():
                     retryable = True
                     detail = f"Malformed JSON output: {exc}"
 
+                outcome = "retryable-failure" if (is_primary and retryable and attempt < max_attempts) else "failure"
+                logger.info(
+                    "AI attempt timing: action='%s' provider='%s' model='%s' attempt=%d duration_ms=%d outcome='%s'",
+                    what, provider_name, active_model, attempt, duration_ms, outcome
+                )
+
                 # Primary gets ONE same-provider retry after a short backoff (2-4s)
-                if is_primary and retryable and attempt < max_attempts:
+                if outcome == "retryable-failure":
                     logger.warning(
                         "Primary provider %s encountered retryable error for '%s' (attempt %d/%d): %s. Retrying in 2.5s...",
                         provider_name, what, attempt, max_attempts, detail
@@ -471,6 +502,11 @@ def generate_structured_with_fallback(
                     break
 
     # If all configured providers failed
+    total_duration_ms = int((time.time() - chain_start) * 1000)
+    logger.info(
+        "AI total timing: action='%s' duration_ms=%d outcome='failure'",
+        what, total_duration_ms
+    )
     name_map = {"gemini": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
     tried_names = [name_map.get(p.lower(), p.capitalize()) for p, _ in candidates]
     action_prefix = f"Unable to {what}: " if what else ""

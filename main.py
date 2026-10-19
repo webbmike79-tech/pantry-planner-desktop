@@ -23,9 +23,12 @@ Run it (from this project's root):
 
 import io
 import json
+import logging
 import os
 import re
 import sqlite3
+
+logger = logging.getLogger("pantry_planner.main")
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -898,17 +901,70 @@ def _generate_structured(keys_or_key, contents, schema, temperature: float, what
     return generate_structured_with_fallback(keys, contents, schema, temperature, what)
 
 
+BARE_GENERIC_NAMES = {
+    "frozen food",
+    "food",
+    "meat",
+    "vegetable",
+    "vegetables",
+    "fruit",
+    "dairy",
+    "snack",
+    "snacks",
+    "drink",
+    "beverage",
+    "pantry item",
+    "grocery",
+    "groceries",
+    "item",
+}
+
+
+def normalize_scan_location_tag(location: str) -> str:
+    loc_clean = (location or "").strip()
+    if "pantry" in loc_clean.lower() or "cupboard" in loc_clean.lower():
+        return "Pantry"
+    if "freezer" in loc_clean.lower():
+        return "Freezer"
+    if "fridge" in loc_clean.lower():
+        return "Fridge"
+    return loc_clean or "Pantry"
+
+
+def sanitize_scan_items(items: List[DetectedItem], location: str) -> List[DetectedItem]:
+    loc_tag = normalize_scan_location_tag(location)
+    generic_idx = 0
+    sanitized: List[DetectedItem] = []
+    for it in items:
+        clean_name = (it.item_name or "").strip()
+        if clean_name.lower() in BARE_GENERIC_NAMES:
+            generic_idx += 1
+            old_name = it.item_name
+            new_name = f"Unidentified {loc_tag} Item {generic_idx}"
+            logger.info("Generic scan item renamed: '%s' -> '%s' (location=%s)", old_name, new_name, location)
+            it.item_name = new_name
+        sanitized.append(it)
+    return sanitized
+
+
 def analyze_storage_photo(keys, image: Image.Image, location: str) -> Tuple[List[DetectedItem], str]:
     prompt = f"""
     You are scanning a user's {location}.
     Identify all visible food items, ingredients, veggies, drinks, and seasonings.
     Estimate the remaining quantity and unit for each item as accurately as possible
     (e.g., 0.5 gallon, 2 cans, 12 oz, 1 bottle).
+
+    NAMING RULES (STRICT ENFORCEMENT):
+    NEVER use a bare category or storage word as an item name (examples banned: "Frozen Food", "Food", "Meat", "Vegetables", "Pantry Item"). Name items by, in order:
+    1. Printed label/brand text visible on the packaging (e.g. "Campbell's Tomato Soup", "Eggo Waffles").
+    2. The specific food you can see (e.g. "Frozen Mixed Vegetables", "Frozen Chicken Breasts", "Frozen Pizza").
+    3. Only if genuinely indeterminate, a descriptive visible-form name (e.g. "Unidentified frozen item — green bag") so a human can rename it in review.
     """
     parsed, served_by = _generate_structured(
         keys, [image, prompt], VisionInventoryResult, 0.2, f"scan your {location} photo"
     )
-    return parsed.items, served_by
+    sanitized_items = sanitize_scan_items(parsed.items, location)
+    return sanitized_items, served_by
 
 
 def _receipt_prompt(shopping_list: list, source_description: str) -> str:
