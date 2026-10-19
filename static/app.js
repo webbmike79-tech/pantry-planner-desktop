@@ -1817,6 +1817,23 @@ async function swapMeal(dayIndex, slot, btnEl) {
   }
 }
 
+function startProgressTimer(el, prefixText) {
+  let elapsed = 0;
+  const update = () => {
+    el.textContent = `${prefixText} (${elapsed}s)`;
+  };
+  update();
+  const timerId = setInterval(() => {
+    elapsed += 1;
+    update();
+  }, 1000);
+  return {
+    stop: () => {
+      clearInterval(timerId);
+    },
+  };
+}
+
 async function generatePlan() {
   if (!requireKey()) return;
   if (!isOnline()) {
@@ -1827,12 +1844,14 @@ async function generatePlan() {
   const msg = $("#menu-msg");
   const btn = $("#generate-btn");
   btn.disabled = true;
-  setMsg(msg, "Building allergy-compliant menu, portion scaling, and recipe steps…");
+  msg.className = "form-msg";
+  const progress = startProgressTimer(msg, "Planning your week… this usually takes about a minute.");
   try {
     const data = await api("/api/plan/generate", {
       method: "POST",
       body: { daily_headcounts: collectDailyHeadcounts(), theme_name: null },
     });
+    progress.stop();
     state.planId = data.plan_id;
     state.planCreatedAt = data.created_at;
     state.plan = data.plan;
@@ -1841,6 +1860,7 @@ async function generatePlan() {
     renderShopping();
     setMsg(msg, "✅ Weekly Menu & Recipes ready!", "ok");
   } catch (e) {
+    progress.stop();
     setMsg(msg, e.message, "err");
   } finally {
     btn.disabled = false;
@@ -2391,12 +2411,14 @@ async function scanShelfPhoto() {
   if (!chosenFile) return;
 
   btn.disabled = true;
-  setMsg(msg, `Scanning ${state.scanLocation} and estimating amounts…`);
+  msg.className = "form-msg";
+  const progress = startProgressTimer(msg, "Reading your photo…");
   try {
     const fd = new FormData();
     fd.append("file", chosenFile);
     fd.append("location", state.scanLocation);
     const data = await api("/api/scan-photo", { method: "POST", body: fd });
+    progress.stop();
     state.inventory = data.inventory;
     localStorage.setItem(CACHE_INV_STORAGE, JSON.stringify(data.inventory));
     renderInventory();
@@ -2404,6 +2426,7 @@ async function scanShelfPhoto() {
     setMsg(msg, `✅ Added ${data.added} items to ${state.scanLocation}!${servedTag}`, "ok");
     toast(`Added ${data.added} items!`);
   } catch (e) {
+    progress.stop();
     setMsg(msg, e.message, "err");
   } finally {
     discardScanImage("scan");
@@ -2451,13 +2474,16 @@ async function scanReceipt() {
 
   if (!chosenFiles.length) return;
   btn.disabled = true;
-  setMsg(msg, "Reading receipt, decoding abbreviations, and updating inventory…");
+  msg.className = "form-msg";
+  const progress = startProgressTimer(msg, "Reading your receipt…");
   try {
     const fd = new FormData();
     for (const f of chosenFiles) fd.append("files", f);
     const data = await api("/api/receipt/scan", { method: "POST", body: fd });
+    progress.stop();
     handleReceiptResult(data, msg, "Receipt scanned!");
   } catch (e) {
+    progress.stop();
     setMsg(msg, e.message, "err");
   } finally {
     discardScanImage("receipt");
@@ -2475,13 +2501,16 @@ async function scanReceiptPdf() {
   const btn = $("#receipt-pdf-btn");
   if (!fileInput.files[0]) return;
   btn.disabled = true;
-  setMsg(msg, "Reading your order PDF and updating inventory…");
+  msg.className = "form-msg";
+  const progress = startProgressTimer(msg, "Reading your receipt…");
   try {
     const fd = new FormData();
     fd.append("file", fileInput.files[0]);
     const data = await api("/api/receipt/scan-pdf", { method: "POST", body: fd });
+    progress.stop();
     handleReceiptResult(data, msg, "Order PDF imported!");
   } catch (e) {
+    progress.stop();
     setMsg(msg, e.message, "err");
   } finally {
     fileInput.value = "";
