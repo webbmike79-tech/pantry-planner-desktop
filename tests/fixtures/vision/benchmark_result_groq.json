@@ -1,0 +1,689 @@
+{
+  "status": "completed",
+  "provider": "groq",
+  "results": {
+    "spice_rack": {
+      "photo_key": "spice_rack",
+      "total_detected": 42,
+      "total_ground_truth": 13,
+      "matched_count": 3,
+      "missed_count": 10,
+      "invented_count": 2,
+      "invented_items": [
+        "McCormick Cinnamon",
+        "McCormick Chili Powder"
+      ],
+      "missed_items": [
+        "Slap Ya Mama Cajun Seasoning",
+        "Taj\u00edn",
+        "Garlic Sea Salt",
+        "Thundering Longhorn Rub",
+        "Taco Seasoning packets",
+        "Pinto Bean Seasoning",
+        "Bay Leaves",
+        "Whole Black Pepper",
+        "Black Peppercorns",
+        "Crushed Red Pepper"
+      ],
+      "matches": [
+        [
+          "McCormick Sweet Onion & Bacon Seasoning",
+          "McCormick Sweet Onion Bacon Seasoning"
+        ],
+        [
+          "McCormick Black Pepper",
+          "Cayenne Pepper"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Paprika",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Turmeric",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cinnamon",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Paprika",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Turmeric",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cinnamon",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Paprika",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Turmeric",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cinnamon",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Paprika",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Turmeric",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cinnamon",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Paprika",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Turmeric",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cinnamon",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Paprika",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Turmeric",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cinnamon",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "McCormick Ground Oregano",
+          "Ground Ginger"
+        ]
+      ]
+    },
+    "pantry": {
+      "photo_key": "pantry",
+      "total_detected": 45,
+      "total_ground_truth": 28,
+      "matched_count": 2,
+      "missed_count": 26,
+      "invented_count": 0,
+      "invented_items": [],
+      "missed_items": [
+        "Clabber Girl Baking Powder",
+        "Del Monte Pickled Beets",
+        "Richfield Orchard Diced Pears",
+        "Apple Sauce",
+        "Pineapple Chunks",
+        "Tteokbokki cups",
+        "Whole Kernel Corn",
+        "Cut Green Beans",
+        "Diced Carrots",
+        "Glory Butter Beans",
+        "Popeye Spinach",
+        "La Victoria Green Chiles",
+        "Campbell's Soup",
+        "Stove Top Stuffing",
+        "Taco Shells",
+        "Macaroni & Cheese",
+        "Lipton Iced Tea",
+        "White Rice",
+        "Ramen packets",
+        "Peanut Butter",
+        "Smucker's Jam",
+        "La Coste\u00f1a Chipotles",
+        "Heinz Gravy",
+        "Doritos",
+        "Tostitos",
+        "Assorted Cookies"
+      ],
+      "matches": [
+        [
+          "Campbell's Soup",
+          "Libby's Sliced Peaches"
+        ],
+        [
+          "Mission Pride Corn",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Pineapple Chunks",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Apple Slices",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Blackberries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Mission Pride Cherries",
+          "Mission Pride Sliced Peaches"
+        ]
+      ]
+    },
+    "fridge": {
+      "photo_key": "fridge",
+      "total_detected": 10,
+      "total_ground_truth": 11,
+      "matched_count": 4,
+      "missed_count": 7,
+      "invented_count": 5,
+      "invented_items": [
+        "Sargento Provolone Cheese",
+        "Crab Cakes",
+        "Carrots",
+        "Unidentified white food in container",
+        "Unidentified red produce in bag"
+      ],
+      "missed_items": [
+        "Premier Protein Shakes",
+        "Eggs",
+        "Iced Tea (pitcher)",
+        "Pickled Vegetables",
+        "Potato Salad (container)",
+        "Butter Spread (tub)",
+        "Tomato"
+      ],
+      "matches": [
+        [
+          "Taco Casa Hot Sauce",
+          "Taco Casa Hot Sauce"
+        ],
+        [
+          "Heinz Tomato Ketchup",
+          "Heinz Tomato Ketchup"
+        ],
+        [
+          "Ground Beef",
+          "Ground Beef"
+        ],
+        [
+          "Chocolate Chips",
+          "Chocolate Chip Cookies (package)"
+        ],
+        [
+          "Unidentified red sauce in container",
+          "Taco Casa Hot Sauce"
+        ]
+      ]
+    },
+    "fridge_door": {
+      "photo_key": "fridge_door",
+      "total_detected": 43,
+      "total_ground_truth": 11,
+      "matched_count": 1,
+      "missed_count": 10,
+      "invented_count": 0,
+      "invented_items": [],
+      "missed_items": [
+        "Mrs. Renfro's Ghost Pepper Salsa",
+        "Louisiana Tartar Sauce",
+        "Miracle Whip",
+        "Steak Sauce",
+        "Masterpiece Hickory Brown Sugar BBQ Sauce",
+        "Cholula Hot Sauce",
+        "La Coste\u00f1a Jalape\u00f1os",
+        "Mustard",
+        "Soy Sauce",
+        "Soda (2L bottle)"
+      ],
+      "matches": [
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ],
+        [
+          "Kraft Salad Dressing",
+          "Kraft Dressing"
+        ]
+      ]
+    },
+    "freezer": {
+      "photo_key": "freezer",
+      "total_detected": 8,
+      "total_ground_truth": 8,
+      "matched_count": 2,
+      "missed_count": 6,
+      "invented_count": 5,
+      "invented_items": [
+        "Frozen Bread Loaf",
+        "Frozen Meat",
+        "Frozen Cookies",
+        "Taj Pel Eggless Lasagna",
+        "Saxa Bread"
+      ],
+      "missed_items": [
+        "Corn on the Cob",
+        "Broccoli Florets",
+        "Tai Pei Frozen Meal",
+        "Sausage",
+        "Ice Cream / Frozen Dessert box",
+        "Frozen Vegetables (bags)"
+      ],
+      "matches": [
+        [
+          "Ice Cubes",
+          "Neapolitan Ice Cream Sandwiches"
+        ],
+        [
+          "Frozen Mixed Vegetables",
+          "Mixed Vegetables"
+        ],
+        [
+          "Frozen Green Peas",
+          "Mixed Vegetables"
+        ]
+      ]
+    }
+  }
+}

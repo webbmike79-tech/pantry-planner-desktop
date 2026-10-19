@@ -4,3 +4,6 @@ __pycache__/
 pantry_planner.db
 pantry_desktop_config.json
 pantry_providers_status.json
+tests/fixtures/vision/*.jpg
+tests/fixtures/vision/*.jpeg
+tests/fixtures/vision/*.png

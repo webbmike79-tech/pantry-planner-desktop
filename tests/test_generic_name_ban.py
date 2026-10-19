@@ -118,13 +118,39 @@ class TestGenericNameBan(unittest.TestCase):
         self.assertIn("Printed label/brand text visible on the packaging", prompt_text)
         self.assertIn("The specific food you can see", prompt_text)
         self.assertIn("Only if genuinely indeterminate, a descriptive visible-form name", prompt_text)
+        # Anti-confabulation & legibility rule assertions
+        self.assertIn("ANTI-CONFABULATION & LEGIBILITY RULES", prompt_text)
+        self.assertIn("NEVER output a brand or product name unless its text is actually legible in the image", prompt_text)
+        self.assertIn("If a label is visible but unreadable, name the item by its visible kind only", prompt_text)
+        self.assertIn("NEVER claim contents you cannot see", prompt_text)
+        self.assertIn('"Clear Bag with Frozen Meat", never "Frozen Pheasant"', prompt_text)
+        self.assertIn("When torn between two specific readings, choose the LESS specific honest one", prompt_text)
+
+    def test_mocked_result_unchanged_by_prompt_rule_extension(self):
+        """Prompt-only change does not affect mock parsing or naming ban guard behavior."""
+        mock_result = VisionInventoryResult(items=[
+            DetectedItem(item_name="Birds Eye Sweet Peas", category="Frozen", quantity=1.0, unit="bag"),
+            DetectedItem(item_name="Clear Bag with Frozen Meat", category="Frozen", quantity=1.0, unit="package"),
+            DetectedItem(item_name="Frozen Food", category="Frozen", quantity=1.0, unit="package"),
+        ])
+        mock_image = MagicMock()
+        patch_target = "main._generate_structured" if "main" in sys.modules else "api.main._generate_structured"
+        with patch(patch_target, return_value=(mock_result, "groq")):
+            res_items, served_by = analyze_storage_photo(MagicMock(), mock_image, "Freezer")
+            self.assertEqual(served_by, "groq")
+            self.assertEqual(len(res_items), 3)
+            self.assertEqual(res_items[0].item_name, "Birds Eye Sweet Peas")
+            self.assertEqual(res_items[1].item_name, "Clear Bag with Frozen Meat")
+            self.assertEqual(res_items[2].item_name, "Unidentified Freezer Item 1")
 
     def test_receipt_scan_path_unaffected_by_guard(self):
         """Assert receipt scan prompt and processing are separate and unaffected by scan guard."""
         prompt = _receipt_prompt([{"item_name": "Milk", "amount_needed": "1 gallon"}], "grocery receipt")
         self.assertNotIn("NAMING RULES (STRICT ENFORCEMENT)", prompt)
+        self.assertNotIn("ANTI-CONFABULATION & LEGIBILITY RULES", prompt)
         self.assertNotIn("Unidentified Freezer Item", prompt)
         self.assertIn("ACTIVE SHOPPING LIST", prompt)
+
 
 
 if __name__ == "__main__":

@@ -959,6 +959,11 @@ def analyze_storage_photo(keys, image: Image.Image, location: str) -> Tuple[List
     1. Printed label/brand text visible on the packaging (e.g. "Campbell's Tomato Soup", "Eggo Waffles").
     2. The specific food you can see (e.g. "Frozen Mixed Vegetables", "Frozen Chicken Breasts", "Frozen Pizza").
     3. Only if genuinely indeterminate, a descriptive visible-form name (e.g. "Unidentified frozen item — green bag") so a human can rename it in review.
+
+    ANTI-CONFABULATION & LEGIBILITY RULES (MANDATORY):
+    - NEVER output a brand or product name unless its text is actually legible in the image. If a label is visible but unreadable, name the item by its visible kind only ("BBQ Sauce", not an invented brand).
+    - NEVER claim contents you cannot see. Opaque, frosted, or sealed items whose contents aren't identifiable from visible text or clear appearance get a descriptive visible-form name (rule 3 of the hierarchy above) — never a guessed food, species, or cut. (A frosty bag is "Clear Bag with Frozen Meat", never "Frozen Pheasant".)
+    - When torn between two specific readings, choose the LESS specific honest one.
     """
     parsed, served_by = _generate_structured(
         keys, [image, prompt], VisionInventoryResult, 0.2, f"scan your {location} photo"
