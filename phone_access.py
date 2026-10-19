@@ -40,6 +40,11 @@ DEFAULT_CONFIG = {
     "phone_access": None,
     "access_code": "",
     "provider_keys": {"gemini": "", "groq": "", "openrouter": ""},
+    "provider_models": {
+        "gemini": "gemini-3.8-flash",
+        "groq": "qwen/qwen3.8-27b",
+        "openrouter": "nvidia/nemotron-3.5-super-vl:free",
+    },
 }
 
 # Visible ASCII only (no spaces): the code travels in an HTTP header, and
@@ -86,6 +91,13 @@ def load_config() -> dict:
                 "groq": str(pk.get("groq", "") or ""),
                 "openrouter": str(pk.get("openrouter", "") or ""),
             }
+        pm = data.get("provider_models")
+        if isinstance(pm, dict):
+            cfg["provider_models"] = {
+                "gemini": str(pm.get("gemini", "") or "gemini-3.8-flash"),
+                "groq": str(pm.get("groq", "") or "qwen/qwen3.8-27b"),
+                "openrouter": str(pm.get("openrouter", "") or "nvidia/nemotron-3.5-super-vl:free"),
+            }
     return cfg
 
 
@@ -102,6 +114,9 @@ def save_config(cfg: dict) -> None:
         pk = cfg.get("provider_keys")
         if isinstance(pk, dict) and any(pk.values()):
             out["provider_keys"] = pk
+        pm = cfg.get("provider_models")
+        if isinstance(pm, dict) and any(pm.values()):
+            out["provider_models"] = pm
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(out, f, indent=2)
         os.replace(tmp, path)

@@ -142,7 +142,8 @@ class AccessCode(Base):
     def test_config_persists_on_disk(self):
         self.enable(code="PERSIST9")
         data = json.loads(Path(os.environ["PANTRY_CONFIG_FILE"]).read_text(encoding="utf-8"))
-        self.assertEqual(data, {"phone_access": True, "access_code": "PERSIST9"})
+        self.assertEqual(data.get("phone_access"), True)
+        self.assertEqual(data.get("access_code"), "PERSIST9")
         self.assertTrue(phone_access.load_config()["phone_access"])
 
 

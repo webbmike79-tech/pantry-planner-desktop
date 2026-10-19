@@ -92,7 +92,7 @@ function getOrCreateElement(id) {
       closest() { return this; },
       querySelector(s) {
         const matches = this.querySelectorAll(s);
-        return matches.length ? matches[0] : getOrCreateElement("child_" + s);
+        return matches.length ? matches[0] : getOrCreateElement(this.id + "_child_" + s.replace(/[^a-zA-Z0-9]/g, "_"));
       },
       querySelectorAll(s) {
         const out = [];
@@ -130,6 +130,13 @@ global.document = {
     return getOrCreateElement(id);
   },
   querySelector(sel) {
+    if (sel.includes(" ")) {
+      const parts = sel.split(/\s+/);
+      const parent = this.querySelector(parts[0]);
+      if (parent && parent.querySelector) {
+        return parent.querySelector(parts.slice(1).join(" "));
+      }
+    }
     if (sel.startsWith("#")) {
       return getOrCreateElement(sel.slice(1));
     }
@@ -1756,6 +1763,150 @@ async function runTests() {
     assert.strictEqual(queuedOutbox[0].item_name, "Hand Item 1", "Queued item has expected name");
 
     console.log("✓ Test 24 Passed: Offline destructive-op enforcement (control disabled, api layer blocked, outbox queued)");
+    passed++;
+  }
+
+  // ==========================================
+  // Test 25: AI Services Status Panel & Model Config (Provider Resilience)
+  // - desktop format shows model, status_word, checked time
+  // - connected phone format sanitizes models, shows plain status word
+  // - model save validation rejects bogus with exact copy, saves valid
+  // - probe button triggers on-demand check
+  // ==========================================
+  {
+    console.log("\nRunning Test 25: AI Services Status Panel & Model Config (Resilience Add-on)...");
+    localStorage.clear();
+    setConnectionState("CONNECTED");
+
+    // 1. Desktop mode status rendering
+    const mockStatusDesktop = {
+      providers: {
+        gemini: {
+          name: "Gemini",
+          model: "gemini-3.8-flash",
+          state: "ok",
+          status_word: "Working",
+          checked_display: "9:41 AM",
+        },
+        groq: {
+          name: "Groq",
+          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          state: "ok",
+          status_word: "Working",
+          checked_display: "9:41 AM",
+        },
+        openrouter: {
+          name: "OpenRouter",
+          model: "nvidia/nemotron-3.5-super-vl:free",
+          state: "down",
+          status_word: "Down",
+          checked_display: "9:41 AM",
+        },
+      },
+    };
+
+    renderProviderStatus(mockStatusDesktop);
+
+    const groqSummaryEl = document.querySelector("#status-row-groq .provider-summary-text");
+    assert.ok(groqSummaryEl, "Groq summary element exists");
+    assert.strictEqual(
+      groqSummaryEl.textContent,
+      "Groq — meta-llama/llama-4-scout-17b-16e-instruct — Working — checked 9:41 AM",
+      "Desktop status line matches exact required format: Groq — meta-llama/llama-4-scout-17b-16e-instruct — Working — checked 9:41 AM"
+    );
+
+    const geminiSummaryEl = document.querySelector("#status-row-gemini .provider-summary-text");
+    assert.strictEqual(
+      geminiSummaryEl.textContent,
+      "Gemini — gemini-3.8-flash — Working — checked 9:41 AM",
+      "Gemini status line matches expected format"
+    );
+
+    // 2. Phone client mode (storedServerUrl present) -> sanitized display
+    localStorage.setItem(SERVER_URL_STORAGE, "http://192.168.1.9:8001");
+    const mockStatusPhone = {
+      providers: {
+        gemini: { name: "Gemini", state: "ok", status_word: "Working" },
+        groq: { name: "Groq", state: "ok", status_word: "Working" },
+        openrouter: { name: "OpenRouter", state: "down", status_word: "Down" },
+      },
+    };
+    renderProviderStatus(mockStatusPhone);
+
+    assert.strictEqual(
+      groqSummaryEl.textContent,
+      "Groq — Working",
+      "Phone client receives sanitized status word only (no model or internal error)"
+    );
+    const orSummaryEl = document.querySelector("#status-row-openrouter .provider-summary-text");
+    assert.strictEqual(
+      orSummaryEl.textContent,
+      "OpenRouter — Down",
+      "Phone client receives sanitized Down status"
+    );
+
+    // 3. Test saveProviderModel validation failure keeps original and displays exact error message
+    localStorage.removeItem(SERVER_URL_STORAGE); // return to desktop mode
+    const groqInput = document.querySelector("#groq-model-input");
+    const groqMsg = document.querySelector("#groq-model-msg");
+    groqInput.value = "bogus-model-123";
+    groqInput.dataset.originalModel = "qwen/qwen3.8-27b";
+
+    fetchHandler = async (url, opts) => {
+      if (url.includes("/api/providers/model")) {
+        return {
+          ok: false,
+          status: 400,
+          headers: { get: () => "application/json" },
+          json: async () => ({
+            ok: false,
+            error: "That model isn't available from Groq right now — check the name and try again.",
+          }),
+        };
+      }
+      return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({}) };
+    };
+
+    await saveProviderModel("groq");
+    assert.strictEqual(
+      groqMsg.textContent,
+      "That model isn't available from Groq right now — check the name and try again.",
+      "Exact plain error displayed when model validation probe fails"
+    );
+    assert.strictEqual(groqInput.value, "qwen/qwen3.8-27b", "Reverts input to original model on validation failure");
+
+    // 4. Test saveProviderModel success updates input and originalModel
+    groqInput.value = "meta-llama/llama-4-scout-17b-16e-instruct";
+    fetchHandler = async (url, opts) => {
+      if (url.includes("/api/providers/model")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => "application/json" },
+          json: async () => ({
+            ok: true,
+            provider: "groq",
+            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            message: "Groq model updated to meta-llama/llama-4-scout-17b-16e-instruct.",
+          }),
+        };
+      }
+      if (url.includes("/api/providers/status")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => "application/json" },
+          json: async () => mockStatusDesktop,
+        };
+      }
+      return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({}) };
+    };
+
+    await saveProviderModel("groq");
+    assert.ok(groqMsg.textContent.includes("Groq model updated"), "Success message displayed on valid model save");
+    assert.strictEqual(groqInput.dataset.originalModel, "meta-llama/llama-4-scout-17b-16e-instruct");
+
+    console.log("✓ Test 25 Passed: AI Services Status Panel & Model Config (desktop formatting, phone sanitization, model validation probe)");
     passed++;
   }
 

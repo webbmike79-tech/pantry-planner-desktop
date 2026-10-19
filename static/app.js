@@ -244,11 +244,16 @@ function updateConnectionUI() {
   const isConnected = connectionState === "CONNECTED" || Boolean(storedServerUrl());
   const standaloneKeysSection = $("#standalone-keys-section");
   const connectedKeysNotice = $("#connected-keys-notice");
+  const serverModelsSection = $("#server-models-section");
   if (standaloneKeysSection) {
     standaloneKeysSection.hidden = isConnected;
   }
   if (connectedKeysNotice) {
     connectedKeysNotice.hidden = !isConnected;
+  }
+  if (serverModelsSection) {
+    // Models config is server-global, hidden from connected phone clients
+    serverModelsSection.hidden = Boolean(storedServerUrl());
   }
 
   const invSaveBtn = $("#inv-save-btn");
@@ -2646,7 +2651,7 @@ async function refreshAll(silent = false) {
 
     saveToOfflineCache(inv, settings, latest);
     setConnectionState("CONNECTED");
-    renderAll();
+    await renderAll();
     const scanMsg = $("#scan-msg");
     if (scanMsg) setMsg(scanMsg, "");
     const menuMsg = $("#menu-msg");
@@ -2663,13 +2668,137 @@ async function refreshAll(silent = false) {
   }
 }
 
-function renderAll() {
+async function loadProviderStatus(triggerCheck = false) {
+  const panel = $("#ai-status-panel-card");
+  if (!panel) return;
+  if (!isOnline() && !triggerCheck) return;
+  const probeBtn = $("#providers-probe-btn");
+  const probeMsg = $("#providers-probe-msg");
+  if (triggerCheck && probeBtn) {
+    probeBtn.disabled = true;
+    if (probeMsg) setMsg(probeMsg, "Checking providers…");
+  }
+  try {
+    const endpoint = triggerCheck ? "/api/providers/status/check" : "/api/providers/status";
+    const method = triggerCheck ? "POST" : "GET";
+    const data = await api(endpoint, { method });
+    renderProviderStatus(data);
+    if (triggerCheck && probeMsg) {
+      setMsg(probeMsg, "Status updated!", "ok");
+      setTimeout(() => setMsg(probeMsg, ""), 3000);
+    }
+  } catch (err) {
+    if (triggerCheck && probeMsg) {
+      setMsg(probeMsg, "Check failed: " + (err.message || err), "err");
+    }
+  } finally {
+    if (triggerCheck && probeBtn) {
+      probeBtn.disabled = false;
+    }
+  }
+}
+
+function renderProviderStatus(statusData) {
+  if (!statusData || !statusData.providers) return;
+  const providers = statusData.providers;
+  const isPhone = Boolean(storedServerUrl());
+
+  const pKeys = ["gemini", "groq", "openrouter"];
+  for (const p of pKeys) {
+    const row = $(`#status-row-${p}`);
+    if (!row) continue;
+    const info = providers[p];
+    if (!info) continue;
+
+    const summaryEl = row.querySelector(".provider-summary-text");
+    const noticeEl = row.querySelector(".provider-auto-update-notice");
+
+    const pName = info.name || (p === "gemini" ? "Gemini" : p === "groq" ? "Groq" : "OpenRouter");
+    const statusWord = info.status_word || (info.state === "ok" ? "Working" : "Down");
+
+    if (isPhone) {
+      // Plain status word for connected phone clients
+      if (summaryEl) summaryEl.textContent = `${pName} — ${statusWord}`;
+      if (noticeEl) noticeEl.hidden = true;
+    } else {
+      // Desktop full format: Provider — model — Working / Down — checked time
+      const model = info.model || "default";
+      const checkedTime = info.checked_display || "Not checked yet";
+      const timePart = checkedTime.toLowerCase().startsWith("checked") ? checkedTime : `checked ${checkedTime}`;
+      if (summaryEl) summaryEl.textContent = `${pName} — ${model} — ${statusWord} — ${timePart}`;
+
+      if (noticeEl) {
+        if (info.auto_updated_msg) {
+          noticeEl.textContent = info.auto_updated_msg;
+          noticeEl.hidden = false;
+        } else {
+          noticeEl.hidden = true;
+        }
+      }
+
+      // Populate input if idle
+      const modelInput = $(`#${p}-model-input`);
+      const isFocused = (typeof document !== "undefined" && document.activeElement === modelInput) ||
+                        (modelInput && typeof modelInput.matches === "function" && modelInput.matches(":focus"));
+      if (modelInput && !isFocused && info.model) {
+        modelInput.value = info.model;
+        modelInput.dataset.originalModel = info.model;
+      }
+    }
+  }
+}
+
+async function saveProviderModel(provider) {
+  const inputEl = $(`#${provider}-model-input`);
+  const msgEl = $(`#${provider}-model-msg`);
+  const btnEl = $(`#${provider}-model-save-btn`);
+  if (!inputEl) return;
+
+  const candidate = (inputEl.value || "").trim();
+  const original = inputEl.dataset.originalModel || candidate;
+  const nameMap = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter" };
+  const provName = nameMap[provider] || provider;
+
+  if (!candidate) {
+    setMsg(msgEl, `Model ID for ${provName} cannot be empty.`, "err");
+    return;
+  }
+
+  if (btnEl) btnEl.disabled = true;
+  setMsg(msgEl, `Validating ${candidate} with ${provName}…`);
+
+  try {
+    const res = await api("/api/providers/model", {
+      method: "POST",
+      body: JSON.stringify({ provider, model: candidate }),
+    });
+
+    if (res && res.ok) {
+      setMsg(msgEl, `✅ ${res.message || "Model updated successfully!"}`, "ok");
+      inputEl.dataset.originalModel = candidate;
+      toast(`${provName} model updated!`);
+      await loadProviderStatus(false);
+    } else {
+      const err = (res && res.error) || `That model isn't available from ${provName} right now — check the name and try again.`;
+      setMsg(msgEl, err, "err");
+      inputEl.value = original;
+    }
+  } catch (err) {
+    setMsg(msgEl, `That model isn't available from ${provName} right now — check the name and try again.`, "err");
+    inputEl.value = original;
+  } finally {
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
+async function renderAll() {
   renderKitchenName();
   renderInventory();
   fillDietForm();
   renderMenu();
   renderShopping();
   renderOutboxStatus();
+  await loadProviderStatus(false);
 }
 
 function init() {
@@ -2761,6 +2890,35 @@ function init() {
   if (openrouterBtn) {
     openrouterBtn.addEventListener("click", () => {
       saveProviderKeyWithValidation("openrouter", OPENROUTER_KEY_STORAGE, $("#openrouter-key-input"), $("#openrouter-key-msg"));
+    });
+  }
+
+  // AI Resilience status probe & model save buttons
+  const probeBtn = $("#providers-probe-btn");
+  if (probeBtn) {
+    probeBtn.addEventListener("click", () => {
+      loadProviderStatus(true);
+    });
+  }
+
+  const geminiModelBtn = $("#gemini-model-save-btn");
+  if (geminiModelBtn) {
+    geminiModelBtn.addEventListener("click", () => {
+      saveProviderModel("gemini");
+    });
+  }
+
+  const groqModelBtn = $("#groq-model-save-btn");
+  if (groqModelBtn) {
+    groqModelBtn.addEventListener("click", () => {
+      saveProviderModel("groq");
+    });
+  }
+
+  const openrouterModelBtn = $("#openrouter-model-save-btn");
+  if (openrouterModelBtn) {
+    openrouterModelBtn.addEventListener("click", () => {
+      saveProviderModel("openrouter");
     });
   }
 

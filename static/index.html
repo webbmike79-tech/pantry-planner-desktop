@@ -352,8 +352,63 @@
       </div>
     </div>
 
+    <div id="ai-services-status-section">
+      <h2>🤖 AI Services Status</h2>
+      <div class="card" id="ai-status-panel-card">
+        <p class="hint" style="margin-top: 0; margin-bottom: 12px;">Real-time health and active models for all configured AI providers.</p>
+        <div id="ai-provider-rows" style="display: flex; flex-direction: column; gap: 10px;">
+          <div id="status-row-gemini" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Gemini — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+          <div id="status-row-groq" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Groq — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+          <div id="status-row-openrouter" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">OpenRouter — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top: 14px; display: flex; align-items: center; gap: 10px;">
+          <button id="providers-probe-btn" class="btn btn-secondary" type="button">🔄 Check now</button>
+          <span id="providers-probe-msg" class="form-msg" role="status" style="margin: 0;"></span>
+        </div>
+      </div>
+    </div>
+
     <div id="connected-keys-notice" class="card" hidden>
       <p class="hint" style="margin: 0; font-size: 0.95rem;">✨ <b>AI features are powered by your connected Pantry Planner server.</b></p>
+    </div>
+
+    <div id="server-models-section" class="card" style="margin-top: 16px;">
+      <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 1.05rem;">⚙️ Provider Models (Server Config)</h3>
+      <p class="hint">Configure active model IDs for each provider. Saving runs a validation probe to confirm the model is available.</p>
+
+      <label class="field-label" for="gemini-model-input">Gemini Model ID</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="gemini-model-input" type="text" placeholder="gemini-3.8-flash" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="gemini-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="gemini-model-msg" role="status"></p>
+
+      <hr class="sep">
+
+      <label class="field-label" for="groq-model-input">Groq Model ID</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="groq-model-input" type="text" placeholder="qwen/qwen3.8-27b" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="groq-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="groq-model-msg" role="status"></p>
+
+      <hr class="sep">
+
+      <label class="field-label" for="openrouter-model-input">OpenRouter Model ID</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="openrouter-model-input" type="text" placeholder="nvidia/nemotron-3.5-super-vl:free" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="openrouter-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="openrouter-model-msg" role="status"></p>
     </div>
 
     <div id="standalone-keys-section">

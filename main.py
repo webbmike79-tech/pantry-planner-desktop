@@ -46,8 +46,12 @@ from google.genai import types
 from ai_fallback import (
     ProviderKeys,
     extract_provider_keys,
+    extract_provider_models,
     generate_structured_with_fallback,
     validate_provider_key,
+    save_provider_model_with_validation,
+    probe_all_providers,
+    get_providers_status,
 )
 
 import phone_access
@@ -1867,6 +1871,69 @@ def api_validate_key(request: Request):
     except Exception:
         pass
     return {"ok": True, "message": "Key works! You're connected."}
+
+
+# ---------- Provider Resilience & Health Watchdog ----------
+
+class SaveProviderModelRequest(BaseModel):
+    provider: str
+    model: str
+
+
+@app.get("/api/providers/status")
+def api_get_providers_status(request: Request):
+    """Retrieve persisted status of AI providers. Connected phones receive sanitized health words."""
+    client_is_phone = False
+    if request.client and request.client.host not in phone_access.LOOPBACK_HOSTS:
+        client_is_phone = True
+    return get_providers_status(client_is_phone=client_is_phone)
+
+
+@app.post("/api/providers/status/check")
+def api_check_providers_status(request: Request):
+    """Run an on-demand probe of all configured providers."""
+    client_is_phone = False
+    if request.client and request.client.host not in phone_access.LOOPBACK_HOSTS:
+        client_is_phone = True
+    probe_all_providers()
+    return get_providers_status(client_is_phone=client_is_phone)
+
+
+@app.post("/api/providers/model")
+def api_save_provider_model(body: SaveProviderModelRequest, request: Request):
+    """Update a provider's model ID with validation probe."""
+    ok, msg, probe_data = save_provider_model_with_validation(
+        provider=body.provider,
+        candidate_model=body.model,
+    )
+    if not ok:
+        return {"ok": False, "error": msg, "details": probe_data}
+    return {"ok": True, "provider": body.provider, "model": body.model, "message": msg}
+
+
+@app.on_event("startup")
+async def startup_resilience_probe():
+    """Run initial probe at startup and launch 24h background watchdog loop."""
+    if os.environ.get("PANTRY_TEST_MODE"):
+        return
+    import asyncio
+    asyncio.create_task(_background_probe_loop())
+
+
+async def _background_probe_loop():
+    import asyncio
+    try:
+        await asyncio.to_thread(probe_all_providers)
+    except Exception:
+        pass
+    while True:
+        try:
+            await asyncio.sleep(86400)
+            await asyncio.to_thread(probe_all_providers)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
 
 
 # ---------- Static PWA (mounted last so /api routes win) ----------
