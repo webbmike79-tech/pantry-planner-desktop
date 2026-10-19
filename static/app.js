@@ -1880,10 +1880,11 @@ async function swapMeal(dayIndex, slot, btnEl) {
   }
 }
 
-function startProgressTimer(el, prefixText) {
+function startProgressTimer(el, prefixText, reassuranceText = null, reassuranceAt = 60) {
   let elapsed = 0;
   const update = () => {
-    el.textContent = `${prefixText} (${elapsed}s)`;
+    const activePrefix = (reassuranceText && elapsed >= reassuranceAt) ? reassuranceText : prefixText;
+    el.textContent = `${activePrefix} (${elapsed}s)`;
   };
   update();
   const timerId = setInterval(() => {
@@ -1893,6 +1894,10 @@ function startProgressTimer(el, prefixText) {
   return {
     stop: () => {
       clearInterval(timerId);
+    },
+    setElapsed: (sec) => {
+      elapsed = sec;
+      update();
     },
   };
 }
@@ -1909,7 +1914,12 @@ async function generatePlan() {
   setMsg(msg, "");
   btn.disabled = true;
   msg.className = "form-msg";
-  const progress = startProgressTimer(msg, "Planning your week… this usually takes about a minute.");
+  const progress = startProgressTimer(
+    msg,
+    "Planning your week… this can take a few minutes.",
+    "Still planning — larger households take a little longer.",
+    60
+  );
   try {
     const data = await api("/api/plan/generate", {
       method: "POST",

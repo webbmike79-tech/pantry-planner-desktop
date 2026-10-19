@@ -22,14 +22,21 @@ os.environ["PANTRY_DB_FILE"] = os.path.join(_TMP, "test.db")  # must be set BEFO
 os.environ["PANTRY_CONFIG_FILE"] = os.path.join(_TMP, "cfg_initial.json")
 os.environ.pop("GEMINI_API_KEY", None)
 
-import main  # noqa: E402
-import phone_access  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+try:
+    import main  # noqa: E402
+    import phone_access  # noqa: E402
+    from fastapi.testclient import TestClient  # noqa: E402
+except ImportError:
+    main = None
+    phone_access = None
+    TestClient = None
 
 PHONE_ORIGIN = {"Origin": "http://localhost"}
 
 
 def make_clients():
+    if not main or not TestClient:
+        return None, None
     local = TestClient(main.app, client=("127.0.0.1", 50000))
     phone = TestClient(main.app, client=("192.168.4.20", 50001))
     return local, phone
@@ -43,6 +50,7 @@ def shop_item(name, purchased):
     }
 
 
+@unittest.skipIf(main is None or phone_access is None, "Desktop-only connected hub test")
 class Base(unittest.TestCase):
     def setUp(self):
         self._n = getattr(Base, "_n", 0) + 1

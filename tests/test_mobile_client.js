@@ -1261,6 +1261,23 @@ async function runTests() {
   await new Promise((r) => setTimeout(r, 1100));
   assert.strictEqual(testMsgEl.textContent, stoppedText, "Timer stopped successfully (no further increment)");
 
+  // 1b. startProgressTimer 60s reassurance threshold verification
+  const testReassureEl = { textContent: "" };
+  const rTimer = startProgressTimer(
+    testReassureEl,
+    "Planning your week… this can take a few minutes.",
+    "Still planning — larger households take a little longer.",
+    60
+  );
+  assert.strictEqual(testReassureEl.textContent, "Planning your week… this can take a few minutes. (0s)", "Initial progress copy");
+  rTimer.setElapsed(59);
+  assert.strictEqual(testReassureEl.textContent, "Planning your week… this can take a few minutes. (59s)", "Progress copy before 60s threshold");
+  rTimer.setElapsed(60);
+  assert.strictEqual(testReassureEl.textContent, "Still planning — larger households take a little longer. (60s)", "Reassurance copy at 60s threshold");
+  rTimer.setElapsed(61);
+  assert.strictEqual(testReassureEl.textContent, "Still planning — larger households take a little longer. (61s)", "Reassurance copy keeps counting after 60s");
+  rTimer.stop();
+
   // Setup connection state for API actions
   setConnectionState("CONNECTED");
   localStorage.setItem(KEY_STORAGE, "mock-key");
@@ -1292,7 +1309,7 @@ async function runTests() {
   const genP = generatePlan();
   // While in flight:
   assert.strictEqual(generateBtn.disabled, true, "Generate button disabled while generating");
-  assert.strictEqual(menuMsg.textContent, "Planning your week… this usually takes about a minute. (0s)", "Generate progress message initialized");
+  assert.strictEqual(menuMsg.textContent, "Planning your week… this can take a few minutes. (0s)", "Generate progress message initialized");
 
   // Resolve generate
   resolveGenerate();

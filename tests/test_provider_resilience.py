@@ -20,28 +20,50 @@ Verifies:
 """
 
 import os
+import sys
 import json
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 from pydantic import BaseModel
 
+_api_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api"))
+if os.path.isdir(_api_dir) and _api_dir not in sys.path:
+    sys.path.insert(0, _api_dir)
+
 import test_isolation
-from ai_fallback import (
-    ProviderKeys,
-    extract_provider_models,
-    save_configured_model,
-    is_vision_model,
-    auto_discover_substitute,
-    probe_provider,
-    probe_all_providers,
-    get_providers_status,
-    save_provider_model_with_validation,
-    is_provider_down,
-    mark_provider_ok,
-    generate_structured_with_fallback,
-    _PROVIDER_STATUS_CACHE,
-)
+try:
+    from ai_fallback import (
+        ProviderKeys,
+        extract_provider_models,
+        save_configured_model,
+        is_vision_model,
+        auto_discover_substitute,
+        probe_provider,
+        probe_all_providers,
+        get_providers_status,
+        save_provider_model_with_validation,
+        is_provider_down,
+        mark_provider_ok,
+        generate_structured_with_fallback,
+        _PROVIDER_STATUS_CACHE,
+    )
+except ImportError:
+    from api.ai_fallback import (
+        ProviderKeys,
+        extract_provider_models,
+        save_configured_model,
+        is_vision_model,
+        auto_discover_substitute,
+        probe_provider,
+        probe_all_providers,
+        get_providers_status,
+        save_provider_model_with_validation,
+        is_provider_down,
+        mark_provider_ok,
+        generate_structured_with_fallback,
+        _PROVIDER_STATUS_CACHE,
+    )
 
 
 class DummyModel(BaseModel):
