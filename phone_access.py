@@ -60,6 +60,8 @@ def config_path() -> Path:
     override = os.environ.get("PANTRY_CONFIG_FILE")
     if override:
         return Path(override)
+    if os.environ.get("PANTRY_TEST_MODE"):
+        raise RuntimeError("CRITICAL: PANTRY_TEST_MODE is active but PANTRY_CONFIG_FILE is not set! Aborting to protect live config.")
     return Path(__file__).resolve().parent / "pantry_desktop_config.json"
 
 

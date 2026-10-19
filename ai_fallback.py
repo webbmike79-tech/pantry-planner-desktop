@@ -54,7 +54,7 @@ def extract_provider_keys(
 
     cfg_keys: Dict[str, str] = {}
     cfg_file = env.get("PANTRY_CONFIG_FILE", "")
-    if not cfg_file:
+    if not cfg_file and not env.get("PANTRY_TEST_MODE"):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
             os.path.join(base_dir, "pantry_desktop_config.json"),

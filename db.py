@@ -10,7 +10,16 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger("pantry_planner.db")
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_FILE = os.environ.get("PANTRY_DB_FILE", str(BASE_DIR / "pantry_planner.db"))
+
+def get_db_file() -> str:
+    path = os.environ.get("PANTRY_DB_FILE")
+    if not path:
+        if os.environ.get("PANTRY_TEST_MODE"):
+            raise RuntimeError("CRITICAL: PANTRY_TEST_MODE is active but PANTRY_DB_FILE is not set! Aborting to protect live database.")
+        path = str(BASE_DIR / "pantry_planner.db")
+    return path
+
+DB_FILE = get_db_file()
 
 current_household_var: contextvars.ContextVar[str] = contextvars.ContextVar("current_household", default="")
 
@@ -103,7 +112,7 @@ def get_db_connection():
             conn.row_factory = sqlite3.Row
             return conn
     else:
-        conn = sqlite3.connect(os.environ.get("PANTRY_DB_FILE", DB_FILE))
+        conn = sqlite3.connect(get_db_file())
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -133,7 +142,7 @@ def get_table_names(household: Optional[str] = None) -> Tuple[str, str, str]:
 def init_db(household: Optional[str] = None, force: bool = False):
     """Ensure required tables and initial settings exist for the current or specified household."""
     inv_tbl, set_tbl, plan_tbl = get_table_names(household)
-    db_target = os.environ.get("DATABASE_URL", "") or os.environ.get("PANTRY_DB_FILE", DB_FILE)
+    db_target = os.environ.get("DATABASE_URL", "") or get_db_file()
     key = (db_target, inv_tbl, set_tbl, plan_tbl)
     if key in _initialized_households and not force:
         return

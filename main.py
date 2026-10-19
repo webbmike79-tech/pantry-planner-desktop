@@ -59,7 +59,11 @@ import db
 
 BASE_DIR = Path(__file__).resolve().parent  # this project's root (main.py lives here)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-DB_FILE = os.environ.get("PANTRY_DB_FILE", str(BASE_DIR / "pantry_planner.db"))
+
+def get_db_file() -> str:
+    return db.get_db_file()
+
+DB_FILE = get_db_file()
 
 # Theme names (from app.py's THEMES). The PWA ships with the current season's
 # palette baked into CSS; the backend only needs the name for the AI prompt.
