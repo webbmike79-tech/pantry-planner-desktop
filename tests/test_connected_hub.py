@@ -260,7 +260,7 @@ class ExistingEndpointsUnchanged(Base):
         self.assertEqual(self.local.get("/health").json()["status"], "ok")
 
     def test_inventory_settings_and_errors(self):
-        self.local.delete("/api/inventory")
+        self.local.delete("/api/inventory?confirm_clear=true")
         r = self.local.post("/api/inventory", json={"location": "Fridge", "items": [
             {"item_name": "milk", "category": "Dairy", "quantity": 1, "unit": "gal"}]})
         self.assertEqual((r.status_code, r.json()["added"]), (200, 1))

@@ -250,6 +250,12 @@ function updateConnectionUI() {
   if (connectedKeysNotice) {
     connectedKeysNotice.hidden = !isConnected;
   }
+
+  const invSaveBtn = $("#inv-save-btn");
+  const invClearBtn = $("#inv-clear-btn");
+  const isDisconnected = (connectionState === "DISCONNECTED");
+  if (invSaveBtn) invSaveBtn.disabled = isDisconnected;
+  if (invClearBtn) invClearBtn.disabled = isDisconnected;
 }
 
 function setConnectionState(newState, detail) {
@@ -863,6 +869,13 @@ function switchToTab(tabId) {
 /* ---------------- API helper ---------------- */
 
 async function api(path, opts = {}) {
+  const method = (opts.method || "GET").toUpperCase();
+  if (path.startsWith("/api/inventory") && (method === "PUT" || method === "DELETE")) {
+    if (connectionState === "DISCONNECTED") {
+      throw new Error("Cannot modify server inventory while disconnected.");
+    }
+  }
+
   const headers = Object.assign({}, opts.headers || {});
   const key = storedKey();
   if (key) headers["X-Gemini-Key"] = key;
@@ -886,13 +899,18 @@ async function api(path, opts = {}) {
   try {
     res = await fetch(url, { method: opts.method || "GET", headers, body });
   } catch (err) {
-    setConnectionState("DISCONNECTED", err.message);
-    throw new Error(`Cannot reach server at ${storedServerUrl() || "local"}. You appear to be offline.`);
+    // Only probeHealth / heartbeat transport failures may set DISCONNECTED.
+    throw new Error(err.message || "Network request failed");
   }
 
   if (res.status === 401) {
     setConnectionState("AUTH_REQUIRED", "Access code required or invalid.");
     throw new Error("Access code required or invalid. Check Desktop Server settings.");
+  }
+
+  // Receiving ANY HTTP response proves the server is reachable
+  if (connectionState !== "CONNECTED") {
+    setConnectionState("CONNECTED");
   }
 
   if (!res.ok) {
@@ -902,10 +920,6 @@ async function api(path, opts = {}) {
       msg = j.detail || msg;
     } catch (e) { /* keep default */ }
     throw new Error(msg);
-  }
-
-  if (connectionState !== "CONNECTED") {
-    setConnectionState("CONNECTED");
   }
 
   const ct = res.headers.get("content-type") || "";
@@ -1887,6 +1901,7 @@ async function generatePlan() {
   }
   const msg = $("#menu-msg");
   const btn = $("#generate-btn");
+  setMsg(msg, "");
   btn.disabled = true;
   msg.className = "form-msg";
   const progress = startProgressTimer(msg, "Planning your week… this usually takes about a minute.");
@@ -2454,6 +2469,7 @@ async function scanShelfPhoto() {
   const chosenFile = (selectedPhotoFiles.scan && selectedPhotoFiles.scan[0]) || (fileInput.files && fileInput.files[0]);
   if (!chosenFile) return;
 
+  setMsg(msg, "");
   btn.disabled = true;
   msg.className = "form-msg";
   const progress = startProgressTimer(msg, "Reading your photo…");
@@ -2631,6 +2647,10 @@ async function refreshAll(silent = false) {
     saveToOfflineCache(inv, settings, latest);
     setConnectionState("CONNECTED");
     renderAll();
+    const scanMsg = $("#scan-msg");
+    if (scanMsg) setMsg(scanMsg, "");
+    const menuMsg = $("#menu-msg");
+    if (menuMsg) setMsg(menuMsg, "");
     await flushOutbox();
     checkNameOnboardingPrompt();
   } catch (err) {
@@ -2931,7 +2951,7 @@ function init() {
     }
     if (!confirm("Clear ALL inventory? This cannot be undone.")) return;
     try {
-      await api("/api/inventory", { method: "DELETE" });
+      await api("/api/inventory?confirm_clear=true", { method: "DELETE" });
       state.inventory = [];
       localStorage.setItem(CACHE_INV_STORAGE, JSON.stringify([]));
       renderInventory();

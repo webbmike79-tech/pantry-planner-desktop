@@ -25,6 +25,7 @@ class TestM7Hosting(unittest.TestCase):
         TestM7Hosting._test_counter += 1
         os.environ["PANTRY_DB_FILE"] = os.path.join(_TMP, f"m7_test_{TestM7Hosting._test_counter}.db")
         db._initialized_households.clear()
+        main.init_db()
         self.client = TestClient(main.app)
 
     def tearDown(self):
@@ -245,7 +246,7 @@ class TestM7Hosting(unittest.TestCase):
         self.assertEqual(res_b_inv_after_deduct[0]["quantity"], 3.0)
 
         # Clear inventory in A
-        self.client.delete("/api/inventory", headers=headers_a)
+        self.client.delete("/api/inventory?confirm_clear=true", headers=headers_a)
         res_a_inv_cleared = self.client.get("/api/inventory", headers=headers_a).json()
         self.assertEqual(res_a_inv_cleared, [])
 
@@ -482,6 +483,74 @@ class TestM7Hosting(unittest.TestCase):
         code_markup = "Markup Household 88"
         res_markup = self.client.post("/api/household/name", headers={"X-Pantry-Token": code_markup}, json={"name": "<b>Bold Mike</b>"})
         self.assertEqual(res_markup.json()["kitchen_name"], "<b>Bold Mike</b>'s Kitchen")
+
+    def test_inventory_destructive_ops_confirm_clear(self):
+        """Part 3.3 server enforcement:
+        - Empty replace without confirm_clear -> rejected (400) and inventory unchanged.
+        - Empty replace with confirm_clear=true -> succeeds (200) and inventory emptied.
+        - Non-empty replace -> succeeds (200) without confirm_clear.
+        - DELETE /api/inventory without confirm_clear -> rejected (400) and inventory unchanged.
+        - DELETE /api/inventory with confirm_clear=true -> succeeds (200) and inventory emptied.
+        """
+        # 1. Populate initial inventory with an item
+        add_res = self.client.post("/api/inventory", json={
+            "location": "Fridge",
+            "items": [{"item_name": "Pasta", "quantity": 2.0, "unit": "box", "category": "Pantry"}]
+        })
+        self.assertEqual(add_res.status_code, 200)
+        inv = self.client.get("/api/inventory").json()
+        self.assertEqual(len(inv), 1)
+        self.assertEqual(inv[0]["item_name"], "Pasta")
+
+        # 2. Empty replace WITHOUT confirm_clear -> rejected (400) + inventory unchanged
+        empty_res = self.client.put("/api/inventory", json=[])
+        self.assertEqual(empty_res.status_code, 400)
+        self.assertIn("confirm_clear", empty_res.json()["detail"])
+        inv = self.client.get("/api/inventory").json()
+        self.assertEqual(len(inv), 1)
+        self.assertEqual(inv[0]["item_name"], "Pasta")
+
+        # 3. DELETE /api/inventory WITHOUT confirm_clear -> rejected (400) + inventory unchanged
+        del_res = self.client.delete("/api/inventory")
+        self.assertEqual(del_res.status_code, 400)
+        self.assertIn("confirm_clear", del_res.json()["detail"])
+        inv = self.client.get("/api/inventory").json()
+        self.assertEqual(len(inv), 1)
+
+        # 4. Normal non-empty replace -> succeeds (200) without confirm_clear
+        item_id = inv[0]["id"]
+        replace_res = self.client.put("/api/inventory", json=[
+            {
+                "id": item_id,
+                "location": "Fridge",
+                "item_name": "Apples",
+                "quantity": 5.0,
+                "unit": "count",
+                "category": "Produce",
+                "updated_at": "2026-10-19T00:00:00"
+            }
+        ])
+        self.assertEqual(replace_res.status_code, 200)
+        inv = self.client.get("/api/inventory").json()
+        self.assertEqual(len(inv), 1)
+        self.assertEqual(inv[0]["item_name"], "Apples")
+
+        # 5. Empty replace WITH confirm_clear=true -> succeeds (200)
+        empty_confirm_res = self.client.put("/api/inventory?confirm_clear=true", json=[])
+        self.assertEqual(empty_confirm_res.status_code, 200)
+        self.assertEqual(len(self.client.get("/api/inventory").json()), 0)
+
+        # Repopulate item
+        self.client.post("/api/inventory", json={
+            "location": "Fridge",
+            "items": [{"item_name": "Rice", "quantity": 1.0, "unit": "bag", "category": "Pantry"}]
+        })
+        self.assertEqual(len(self.client.get("/api/inventory").json()), 1)
+
+        # 6. DELETE /api/inventory WITH confirm_clear=true -> succeeds (200)
+        del_confirm_res = self.client.delete("/api/inventory?confirm_clear=true")
+        self.assertEqual(del_confirm_res.status_code, 200)
+        self.assertEqual(len(self.client.get("/api/inventory").json()), 0)
 
 
 if __name__ == "__main__":

@@ -70,7 +70,7 @@ class TestAIFallbackChain(unittest.TestCase):
         )
         self.assertEqual(served_by, "groq")
         self.assertEqual(res.item_name, "Apples")
-        mock_gemini.assert_called_once()
+        self.assertEqual(mock_gemini.call_count, 2)
         mock_openai.assert_called_once()
 
     @patch("ai_fallback._call_openai_compatible")
@@ -117,7 +117,8 @@ class TestAIFallbackChain(unittest.TestCase):
             )
         err_msg = str(ctx.exception)
         self.assertIn("Unable to read grocery receipt", err_msg)
-        self.assertIn("temporarily unavailable or overloaded", err_msg)
+        self.assertIn("All AI services are unavailable right now", err_msg)
+        self.assertIn("Gemini, Groq, OpenRouter", err_msg)
         self.assertNotIn("Traceback", err_msg)
 
     @patch("ai_fallback._call_openai_compatible")
@@ -162,7 +163,8 @@ class TestAIFallbackChain(unittest.TestCase):
             OPENROUTER_DEFAULT_MODEL,
         )
         self.assertEqual(GEMINI_DEFAULT_MODEL, "gemini-3.8-flash")
-        self.assertEqual(GROQ_DEFAULT_MODEL, "meta-llama/llama-4-scout-17b-16e-instruct")
+        self.assertEqual(GROQ_DEFAULT_MODEL, "qwen/qwen3.8-27b")
+        self.assertEqual(OPENROUTER_DEFAULT_MODEL, "nvidia/nemotron-3.5-super-vl:free")
         self.assertTrue(
             ":free" in OPENROUTER_DEFAULT_MODEL,
             f"OpenRouter default model must be a :free model, got {OPENROUTER_DEFAULT_MODEL}",
@@ -172,6 +174,74 @@ class TestAIFallbackChain(unittest.TestCase):
         for txt in text_only:
             self.assertNotIn(txt, GROQ_DEFAULT_MODEL)
             self.assertNotIn(txt, OPENROUTER_DEFAULT_MODEL)
+
+    @patch("time.sleep")
+    @patch("ai_fallback._call_gemini")
+    @patch("ai_fallback._call_openai_compatible")
+    def test_gemini_503_retries_once_before_succeeding(self, mock_openai, mock_gemini, mock_sleep):
+        """Mocked 503-then-200 primary succeeds on retry without touching fallbacks."""
+        mock_gemini.side_effect = [
+            Exception("503 Service Unavailable: The model is overloaded. Please try again later."),
+            self.dummy_json,
+        ]
+        res, served_by = generate_structured_with_fallback(
+            keys=self.keys_all,
+            contents="test prompt",
+            schema=DummyResult,
+            temperature=0.1,
+            what="scan test item",
+        )
+        self.assertEqual(served_by, "gemini")
+        self.assertEqual(res.item_name, "Apples")
+        self.assertEqual(mock_gemini.call_count, 2)
+        mock_openai.assert_not_called()
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("ai_fallback._call_gemini")
+    @patch("ai_fallback._call_openai_compatible")
+    def test_gemini_persistent_503_falls_through_to_fallback(self, mock_openai, mock_gemini, mock_sleep):
+        """Mocked persistent 503 on primary retries once, then falls through to Groq."""
+        mock_gemini.side_effect = Exception("503 Service Unavailable: The model is overloaded. Please try again later.")
+        mock_openai.return_value = self.dummy_json
+
+        res, served_by = generate_structured_with_fallback(
+            keys=self.keys_all,
+            contents="test prompt",
+            schema=DummyResult,
+            temperature=0.1,
+            what="scan test item",
+        )
+        self.assertEqual(served_by, "groq")
+        self.assertEqual(res.item_name, "Apples")
+        self.assertEqual(mock_gemini.call_count, 2)
+        mock_openai.assert_called_once()
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("ai_fallback._call_gemini")
+    @patch("ai_fallback._call_openai_compatible")
+    def test_all_ai_providers_fail_gives_honest_error_naming_backups(self, mock_openai, mock_gemini, mock_sleep):
+        """When whole chain fails, error details distinguish cause, names backups, and does not blame network."""
+        mock_gemini.side_effect = Exception("503 Service Unavailable: High demand")
+        mock_openai.side_effect = Exception("HTTP 404 Not Found")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            generate_structured_with_fallback(
+                keys=self.keys_all,
+                contents="test prompt",
+                schema=DummyResult,
+                temperature=0.1,
+                what="scan test item",
+            )
+        err_msg = str(ctx.exception)
+        self.assertIn("All AI services are unavailable right now", err_msg)
+        self.assertIn("Gemini", err_msg)
+        self.assertIn("Groq", err_msg)
+        self.assertIn("OpenRouter", err_msg)
+        self.assertIn("were all tried", err_msg)
+        self.assertNotIn("offline", err_msg.lower())
+        self.assertNotIn("network", err_msg.lower())
 
     @patch("ai_fallback._call_openai_compatible")
     def test_unconfigured_provider_is_skipped(self, mock_openai):

@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any, Dict, List, Optional, Tuple, Type
 from PIL import Image
 from pydantic import BaseModel
@@ -26,10 +27,10 @@ import requests
 logger = logging.getLogger("pantry_planner.ai_fallback")
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-GROQ_DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+GROQ_DEFAULT_MODEL = "qwen/qwen3.8-27b"
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"
+OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3.5-super-vl:free"
 
 GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
 
@@ -291,65 +292,82 @@ def generate_structured_with_fallback(
 
     for provider_name, api_key in candidates:
         logger.info("Attempting AI request for '%s' using provider: %s", what, provider_name)
-        raw_text = ""
-        try:
-            if provider_name == "gemini":
-                raw_text = _call_gemini(api_key, contents, schema, temperature)
-            elif provider_name == "groq":
-                messages = _build_openai_messages(contents, schema)
-                raw_text = _call_openai_compatible(
-                    base_url=GROQ_BASE_URL,
-                    api_key=api_key,
-                    model=GROQ_DEFAULT_MODEL,
-                    messages=messages,
-                    temperature=temperature,
+        is_primary = (provider_name == candidates[0][0])
+        max_attempts = 2 if is_primary else 1
+
+        for attempt in range(1, max_attempts + 1):
+            raw_text = ""
+            try:
+                if provider_name == "gemini":
+                    raw_text = _call_gemini(api_key, contents, schema, temperature)
+                elif provider_name == "groq":
+                    messages = _build_openai_messages(contents, schema)
+                    raw_text = _call_openai_compatible(
+                        base_url=GROQ_BASE_URL,
+                        api_key=api_key,
+                        model=GROQ_DEFAULT_MODEL,
+                        messages=messages,
+                        temperature=temperature,
+                    )
+                elif provider_name == "openrouter":
+                    messages = _build_openai_messages(contents, schema)
+                    raw_text = _call_openai_compatible(
+                        base_url=OPENROUTER_BASE_URL,
+                        api_key=api_key,
+                        model=OPENROUTER_DEFAULT_MODEL,
+                        messages=messages,
+                        temperature=temperature,
+                        extra_headers={
+                            "HTTP-Referer": "https://pantryplanner.app",
+                            "X-Title": "Pantry Planner",
+                        },
+                    )
+
+                if not raw_text or not raw_text.strip():
+                    logger.warning("Provider %s returned empty response for '%s'", provider_name, what)
+                    last_errors.append(f"{provider_name}: empty response")
+                    continue
+
+                cleaned_text = _clean_json_markdown(raw_text)
+                parsed = schema.model_validate_json(cleaned_text)
+                logger.info("Successfully served '%s' via provider: %s", what, provider_name)
+                return parsed, provider_name
+
+            except Exception as exc:
+                retryable, detail = _is_retryable_error(exc)
+                # Schema validation failure: treat as malformed JSON and retryable
+                if "validation" in str(type(exc)).lower() or "json" in str(type(exc)).lower():
+                    retryable = True
+                    detail = f"Malformed JSON output: {exc}"
+
+                # Primary gets ONE same-provider retry after a short backoff (2-4s)
+                if is_primary and retryable and attempt < max_attempts:
+                    logger.warning(
+                        "Primary provider %s encountered retryable error for '%s' (attempt %d/%d): %s. Retrying in 2.5s...",
+                        provider_name, what, attempt, max_attempts, detail
+                    )
+                    time.sleep(2.5)
+                    continue
+
+                logger.warning(
+                    "Provider %s failed for '%s' (retryable=%s): %s",
+                    provider_name, what, retryable, detail
                 )
-            elif provider_name == "openrouter":
-                messages = _build_openai_messages(contents, schema)
-                raw_text = _call_openai_compatible(
-                    base_url=OPENROUTER_BASE_URL,
-                    api_key=api_key,
-                    model=OPENROUTER_DEFAULT_MODEL,
-                    messages=messages,
-                    temperature=temperature,
-                    extra_headers={
-                        "HTTP-Referer": "https://pantryplanner.app",
-                        "X-Title": "Pantry Planner",
-                    },
-                )
-
-            if not raw_text or not raw_text.strip():
-                logger.warning("Provider %s returned empty response for '%s'", provider_name, what)
-                last_errors.append(f"{provider_name}: empty response")
-                continue
-
-            cleaned_text = _clean_json_markdown(raw_text)
-            parsed = schema.model_validate_json(cleaned_text)
-            logger.info("Successfully served '%s' via provider: %s", what, provider_name)
-            return parsed, provider_name
-
-        except Exception as exc:
-            retryable, detail = _is_retryable_error(exc)
-            # Schema validation failure: treat as malformed JSON and retryable
-            if "validation" in str(type(exc)).lower() or "json" in str(type(exc)).lower():
-                retryable = True
-                detail = f"Malformed JSON output: {exc}"
-
-            logger.warning(
-                "Provider %s failed for '%s' (retryable=%s): %s",
-                provider_name, what, retryable, detail
-            )
-            last_errors.append(f"{provider_name} ({detail})")
-            if not retryable and len(candidates) == 1:
-                # If only one provider and hard non-retryable error, still fail gracefully
-                break
+                last_errors.append(f"{provider_name} ({detail})")
+                if not retryable and len(candidates) == 1:
+                    # If only one provider and hard non-retryable error, still fail gracefully
+                    break
 
     # If all configured providers failed
+    name_map = {"gemini": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
+    tried_names = [name_map.get(p.lower(), p.capitalize()) for p, _ in candidates]
+    action_prefix = f"Unable to {what}: " if what else ""
+    if len(tried_names) > 1:
+        friendly_msg = f"{action_prefix}All AI services are unavailable right now — {', '.join(tried_names)} were all tried. Please try again in a few minutes."
+    else:
+        friendly_msg = f"{action_prefix}AI service ({tried_names[0]}) is unavailable right now. Please try again in a few minutes."
     logger.error("All AI providers in fallback chain failed for '%s': %s", what, "; ".join(last_errors))
-    raise RuntimeError(
-        f"Unable to {what}. The AI services were temporarily unavailable or overloaded. "
-        "Please try again in a moment."
-    )
+    raise RuntimeError(friendly_msg)
 
 
 def validate_provider_key(provider: str, api_key: str) -> Tuple[bool, str]:

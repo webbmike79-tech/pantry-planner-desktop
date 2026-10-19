@@ -1273,7 +1273,15 @@ def api_add_inventory(body: AddInventoryRequest):
 
 
 @app.put("/api/inventory")
-def api_replace_inventory(items: List[InventoryItemIn]):
+def api_replace_inventory(
+    items: List[InventoryItemIn],
+    confirm_clear: bool = Query(False, alias="confirm_clear"),
+):
+    if len(items) == 0 and not confirm_clear:
+        raise HTTPException(
+            status_code=400,
+            detail="Clearing inventory to empty requires explicit confirm_clear confirmation.",
+        )
     df = pd.DataFrame(
         [
             {
@@ -1294,7 +1302,14 @@ def api_replace_inventory(items: List[InventoryItemIn]):
 
 
 @app.delete("/api/inventory")
-def api_clear_inventory():
+def api_clear_inventory(
+    confirm_clear: bool = Query(False, alias="confirm_clear"),
+):
+    if not confirm_clear:
+        raise HTTPException(
+            status_code=400,
+            detail="Clearing inventory requires explicit confirm_clear confirmation.",
+        )
     clear_inventory()
     return {"inventory": []}
 
