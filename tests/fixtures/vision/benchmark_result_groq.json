@@ -4,217 +4,91 @@
   "results": {
     "spice_rack": {
       "photo_key": "spice_rack",
-      "total_detected": 42,
+      "total_detected": 19,
       "total_ground_truth": 13,
-      "matched_count": 3,
-      "missed_count": 10,
-      "invented_count": 2,
+      "matched_count": 7,
+      "missed_count": 6,
+      "invented_count": 7,
       "invented_items": [
-        "McCormick Cinnamon",
-        "McCormick Chili Powder"
+        "Tajin Cl\u00e1sico Seasoning",
+        "Fire & Smoke Society Seasoning",
+        "Adams Seasoning",
+        "McCormick Grill Mates Herb Seasoning",
+        "Tomato Seasoning",
+        "Duke's Hot Sauce",
+        "Unidentified seasoning packets"
       ],
       "missed_items": [
-        "Slap Ya Mama Cajun Seasoning",
         "Taj\u00edn",
-        "Garlic Sea Salt",
-        "Thundering Longhorn Rub",
         "Taco Seasoning packets",
         "Pinto Bean Seasoning",
         "Bay Leaves",
         "Whole Black Pepper",
-        "Black Peppercorns",
-        "Crushed Red Pepper"
+        "Black Peppercorns"
       ],
       "matches": [
         [
-          "McCormick Sweet Onion & Bacon Seasoning",
+          "Slap a Mama Cajun Seasoning",
+          "Slap Ya Mama Cajun Seasoning"
+        ],
+        [
+          "Thundering Longhorn Seasoning",
+          "Thundering Longhorn Rub"
+        ],
+        [
+          "Lola's Garlic Sea Salt",
+          "Garlic Sea Salt"
+        ],
+        [
+          "Great Value Garlic Salt",
+          "Garlic Sea Salt"
+        ],
+        [
+          "Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "Sweet Onion Bacon Seasoning",
           "McCormick Sweet Onion Bacon Seasoning"
+        ],
+        [
+          "Ginger Salt Seasoning",
+          "Garlic Sea Salt"
         ],
         [
           "McCormick Black Pepper",
           "Cayenne Pepper"
         ],
         [
-          "McCormick Ground Cumin",
+          "Cayenne Pepper",
+          "Cayenne Pepper"
+        ],
+        [
+          "Whole Black Pepper",
+          "Cayenne Pepper"
+        ],
+        [
+          "Ground Cumin",
           "Ground Ginger"
         ],
         [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Paprika",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Turmeric",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Ginger",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cinnamon",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cumin",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Paprika",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Turmeric",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Ginger",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cinnamon",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cumin",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Paprika",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Turmeric",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Ginger",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cinnamon",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cumin",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Paprika",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Turmeric",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Ginger",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cinnamon",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cumin",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Paprika",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Turmeric",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Ginger",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cinnamon",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cumin",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Paprika",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Turmeric",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Ginger",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cinnamon",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Cumin",
-          "Ground Ginger"
-        ],
-        [
-          "McCormick Ground Oregano",
-          "Ground Ginger"
+          "Red Chili Flakes",
+          "Crushed Red Pepper"
         ]
       ]
     },
     "pantry": {
       "photo_key": "pantry",
-      "total_detected": 45,
+      "total_detected": 42,
       "total_ground_truth": 28,
-      "matched_count": 2,
-      "missed_count": 26,
+      "matched_count": 17,
+      "missed_count": 11,
       "invented_count": 0,
       "invented_items": [],
       "missed_items": [
-        "Clabber Girl Baking Powder",
-        "Del Monte Pickled Beets",
-        "Richfield Orchard Diced Pears",
-        "Apple Sauce",
-        "Pineapple Chunks",
         "Tteokbokki cups",
-        "Whole Kernel Corn",
-        "Cut Green Beans",
-        "Diced Carrots",
-        "Glory Butter Beans",
-        "Popeye Spinach",
-        "La Victoria Green Chiles",
         "Campbell's Soup",
-        "Stove Top Stuffing",
         "Taco Shells",
-        "Macaroni & Cheese",
-        "Lipton Iced Tea",
-        "White Rice",
         "Ramen packets",
         "Peanut Butter",
         "Smucker's Jam",
@@ -226,205 +100,190 @@
       ],
       "matches": [
         [
-          "Campbell's Soup",
+          "Clabber Girl Baking Powder",
+          "Clabber Girl Baking Powder"
+        ],
+        [
+          "Mission Pride Canned Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Richland Orchard Canned Pears",
+          "Richfield Orchard Diced Pears"
+        ],
+        [
+          "Germant Pickled Beets",
+          "Del Monte Pickled Beets"
+        ],
+        [
+          "NEMCO Canned Carrots",
+          "Diced Carrots"
+        ],
+        [
+          "Deshler Brand Canned Green Beans",
+          "Cut Green Beans"
+        ],
+        [
+          "Great Value Canned Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Hudnut Canned Sweet Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Richland Orchard Canned Applesauce",
+          "Richfield Orchard Diced Pears"
+        ],
+        [
+          "Swanson Pineapple Chunks",
+          "Pineapple Chunks"
+        ],
+        [
+          "Little Kobik Canned Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Glory Seasoned Butter Beans",
+          "Cut Green Beans"
+        ],
+        [
+          "Popeye Canned Spinach",
+          "Popeye Spinach"
+        ],
+        [
+          "Victor's Canned Green Beans",
+          "Cut Green Beans"
+        ],
+        [
+          "Campbell's Canned Soup",
           "Libby's Sliced Peaches"
         ],
         [
-          "Mission Pride Corn",
-          "Mission Pride Sliced Peaches"
+          "Fritos Canned Corn",
+          "Whole Kernel Corn"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Lipton Iced Tea",
+          "Lipton Iced Tea"
         ],
         [
-          "Mission Pride Pineapple Chunks",
-          "Mission Pride Sliced Peaches"
+          "Stove Top Stuffing Mix",
+          "Stove Top Stuffing"
         ],
         [
-          "Mission Pride Apple Slices",
-          "Mission Pride Sliced Peaches"
+          "La Flora Taco Shells",
+          "La Victoria Green Chiles"
         ],
         [
-          "Mission Pride Blackberries",
-          "Mission Pride Sliced Peaches"
+          "Premier Cheese",
+          "Macaroni & Cheese"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Boil-in-Bag White Rice",
+          "White Rice"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Stove Top White Stuffing",
+          "Stove Top Stuffing"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Aronson Peanut Butter",
+          "Glory Butter Beans"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Smucker's Red Plum Jam",
+          "Libby's Sliced Peaches"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "La Costena Salsa",
+          "La Victoria Green Chiles"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Heinz Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Heinz Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ],
         [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Peaches",
-          "Mission Pride Sliced Peaches"
-        ],
-        [
-          "Mission Pride Cherries",
-          "Mission Pride Sliced Peaches"
+          "Windsor Canned Sauce",
+          "Apple Sauce"
         ]
       ]
     },
     "fridge": {
       "photo_key": "fridge",
-      "total_detected": 10,
+      "total_detected": 11,
       "total_ground_truth": 11,
-      "matched_count": 4,
-      "missed_count": 7,
-      "invented_count": 5,
+      "matched_count": 6,
+      "missed_count": 5,
+      "invented_count": 4,
       "invented_items": [
-        "Sargento Provolone Cheese",
-        "Crab Cakes",
-        "Carrots",
-        "Unidentified white food in container",
-        "Unidentified red produce in bag"
+        "Pretzel Crisps",
+        "Unidentified white container",
+        "Unidentified food in plastic container",
+        "Unidentified bagged item"
       ],
       "missed_items": [
         "Premier Protein Shakes",
-        "Eggs",
-        "Iced Tea (pitcher)",
         "Pickled Vegetables",
         "Potato Salad (container)",
         "Butter Spread (tub)",
@@ -432,39 +291,41 @@
       ],
       "matches": [
         [
+          "Heinz Tomato Ketchup",
+          "Heinz Tomato Ketchup"
+        ],
+        [
           "Taco Casa Hot Sauce",
           "Taco Casa Hot Sauce"
         ],
         [
-          "Heinz Tomato Ketchup",
-          "Heinz Tomato Ketchup"
+          "Eggs",
+          "Eggs"
         ],
         [
           "Ground Beef",
           "Ground Beef"
         ],
         [
-          "Chocolate Chips",
-          "Chocolate Chip Cookies (package)"
+          "Unidentified liquid in pitcher",
+          "Iced Tea (pitcher)"
         ],
         [
-          "Unidentified red sauce in container",
-          "Taco Casa Hot Sauce"
+          "Chocolate Chip Cookies",
+          "Chocolate Chip Cookies (package)"
         ]
       ]
     },
     "fridge_door": {
       "photo_key": "fridge_door",
-      "total_detected": 43,
+      "total_detected": 45,
       "total_ground_truth": 11,
-      "matched_count": 1,
-      "missed_count": 10,
+      "matched_count": 3,
+      "missed_count": 8,
       "invented_count": 0,
       "invented_items": [],
       "missed_items": [
-        "Mrs. Renfro's Ghost Pepper Salsa",
-        "Louisiana Tartar Sauce",
-        "Miracle Whip",
+        "Kraft Dressing",
         "Steak Sauce",
         "Masterpiece Hickory Brown Sugar BBQ Sauce",
         "Cholula Hot Sauce",
@@ -475,213 +336,220 @@
       ],
       "matches": [
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Mrs. Renfro's Ghost Pepper Salsa",
+          "Mrs. Renfro's Ghost Pepper Salsa"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Louisiana Tartar Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Miracle Whip",
+          "Miracle Whip"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Kraft Remoulade Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Hot Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ],
         [
-          "Kraft Salad Dressing",
-          "Kraft Dressing"
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
         ]
       ]
     },
     "freezer": {
       "photo_key": "freezer",
-      "total_detected": 8,
+      "total_detected": 10,
       "total_ground_truth": 8,
       "matched_count": 2,
       "missed_count": 6,
-      "invented_count": 5,
+      "invented_count": 8,
       "invented_items": [
-        "Frozen Bread Loaf",
+        "Eggo Waffles",
+        "Frozen Spinach",
+        "Frozen Bread",
         "Frozen Meat",
-        "Frozen Cookies",
-        "Taj Pel Eggless Lasagna",
-        "Saxa Bread"
+        "Unidentified Freezer Item 1",
+        "Unidentified Freezer Item 2",
+        "Unidentified Freezer Item 3",
+        "Unidentified Freezer Item 4"
       ],
       "missed_items": [
         "Corn on the Cob",
         "Broccoli Florets",
-        "Tai Pei Frozen Meal",
+        "Neapolitan Ice Cream Sandwiches",
         "Sausage",
         "Ice Cream / Frozen Dessert box",
         "Frozen Vegetables (bags)"
       ],
       "matches": [
         [
-          "Ice Cubes",
-          "Neapolitan Ice Cream Sandwiches"
-        ],
-        [
           "Frozen Mixed Vegetables",
           "Mixed Vegetables"
         ],
         [
-          "Frozen Green Peas",
-          "Mixed Vegetables"
+          "Tale Pei Frozen Food",
+          "Tai Pei Frozen Meal"
         ]
       ]
     }
