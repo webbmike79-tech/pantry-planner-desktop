@@ -40,6 +40,29 @@ h2 { font-size: 1.1rem; margin: 20px 4px 8px; }
   align-items: center;
   justify-content: space-between;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-server-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.header-server-btn:hover, .header-server-btn:active {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--accent);
+}
 .header-refresh-btn {
   background: rgba(255, 117, 24, 0.15);
   border: 1px solid var(--border);

@@ -195,20 +195,27 @@ function updateConnectionUI() {
   const bannerIcon = $("#banner-icon");
   const dot = $("#server-status-dot");
   const statusText = $("#server-status-text");
+  const headerDot = $("#header-server-dot");
+  const headerLabel = $("#header-server-label");
   const serverUrl = storedServerUrl();
   const hostLabel = serverUrl ? serverUrl.replace(/^https?:\/\//, "") : (isCapacitor() ? "Home Server" : "local server");
 
   if (banner) banner.className = "connection-banner";
   if (dot) dot.className = "status-dot";
+  if (headerDot) headerDot.className = "status-dot";
 
   if (connectionState === "CONNECTED") {
     if (banner) banner.hidden = true;
     if (dot) dot.classList.add("connected");
     if (statusText) statusText.textContent = `Connected (${hostLabel})`;
+    if (headerDot) headerDot.classList.add("connected");
+    if (headerLabel) headerLabel.textContent = "Connected";
   } else if (connectionState === "CONNECTING") {
     if (banner) banner.hidden = true;
     if (dot) dot.classList.add("connecting");
     if (statusText) statusText.textContent = "Connecting…";
+    if (headerDot) headerDot.classList.add("connecting");
+    if (headerLabel) headerLabel.textContent = "Connecting…";
   } else if (connectionState === "AUTH_REQUIRED") {
     if (banner) {
       banner.hidden = false;
@@ -218,6 +225,8 @@ function updateConnectionUI() {
     if (bannerText) bannerText.textContent = `Access code required for ${hostLabel}. Set it in Settings.`;
     if (dot) dot.classList.add("auth");
     if (statusText) statusText.textContent = "Access code required / incorrect";
+    if (headerDot) headerDot.classList.add("auth");
+    if (headerLabel) headerLabel.textContent = "Auth required";
   } else {
     // DISCONNECTED
     if (banner) {
@@ -228,6 +237,8 @@ function updateConnectionUI() {
     if (bannerText) bannerText.textContent = `Disconnected from ${hostLabel}.${timeNote}`;
     if (dot) dot.classList.add("disconnected");
     if (statusText) statusText.textContent = `Disconnected (${hostLabel})`;
+    if (headerDot) headerDot.classList.add("disconnected");
+    if (headerLabel) headerLabel.textContent = "Offline";
   }
 
   const isConnected = connectionState === "CONNECTED" || Boolean(storedServerUrl());
@@ -555,14 +566,40 @@ function updateServerSetupScreenLayout() {
   }
 }
 
+function hasServerConfigured() {
+  return Boolean(storedServerUrl() || isHostedMode());
+}
+
+function showServerUnreachableModal(customMsg) {
+  const modal = $("#server-unreachable-modal");
+  if (!modal) return;
+  const url = storedServerUrl() || "your configured address";
+  const textEl = $("#server-unreachable-text");
+  if (textEl) {
+    textEl.textContent = customMsg || `Your Home Server can't be reached at ${url}. Check that your computer is awake and connected to the same Wi-Fi, or update the server address.`;
+  }
+  modal.hidden = false;
+}
+
+function hideServerUnreachableModal() {
+  const modal = $("#server-unreachable-modal");
+  if (modal) modal.hidden = true;
+}
+
 function showServerSetup() {
   updateServerSetupScreenLayout();
+  const input = $("#setup-server-url");
+  const tokenInput = $("#setup-server-token");
+  if (input) input.value = storedServerUrl();
+  if (tokenInput) tokenInput.value = storedAccessToken();
   const screen = $("#server-setup-screen");
   if (screen) screen.hidden = false;
 }
 function hideServerSetup() {
   const screen = $("#server-setup-screen");
   if (screen) screen.hidden = true;
+  const msg = $("#setup-server-msg");
+  if (msg) setMsg(msg, "");
 }
 
 function renderKitchenName() {
@@ -801,9 +838,16 @@ async function confirmClearMenu() {
 }
 
 function requireKey() {
-  // Key ownership rule: when connected to a server, all AI calls are served by the
-  // server's configured keys. A connected client never prompts for, requires, or blocks on keys.
-  if (isOnline()) return true;
+  // Key ownership rule (Milestone 5): when a server is in play, all AI calls are
+  // served by the server's configured keys. A connected client never prompts for,
+  // requires, or blocks on keys.
+  if (hasServerConfigured()) {
+    if (isOnline()) return true;
+    showServerUnreachableModal();
+    toast("⚠️ Home Server unreachable — check address in Settings");
+    return false;
+  }
+  // Standalone mode (no server configured): key required locally
   if (hasKey()) return true;
   showSetup();
   toast("Add your free Gemini key first 🔑 (or connect to your desktop server in Settings)");
@@ -2711,6 +2755,13 @@ function init() {
     sessionStorage.setItem("setup_skipped", "1");
     hideSetup();
   });
+  const setupToServerBtn = $("#setup-to-server-btn");
+  if (setupToServerBtn) {
+    setupToServerBtn.addEventListener("click", () => {
+      hideSetup();
+      showServerSetup();
+    });
+  }
   $("#settings-key-btn").addEventListener("click", () => {
     saveKeyWithValidation($("#settings-key-input"), $("#settings-key-msg"));
   });
@@ -2779,6 +2830,43 @@ function init() {
     hideServerSetup();
     refreshAll();
   });
+  const setupServerCloseBtn = $("#setup-server-close-btn");
+  if (setupServerCloseBtn) {
+    setupServerCloseBtn.addEventListener("click", () => {
+      hideServerSetup();
+    });
+  }
+
+  // Server Unreachable Modal events
+  const unreachableEditBtn = $("#server-unreachable-edit-btn");
+  if (unreachableEditBtn) {
+    unreachableEditBtn.addEventListener("click", () => {
+      hideServerUnreachableModal();
+      showServerSetup();
+    });
+  }
+  const unreachableRetryBtn = $("#server-unreachable-retry-btn");
+  if (unreachableRetryBtn) {
+    unreachableRetryBtn.addEventListener("click", () => {
+      hideServerUnreachableModal();
+      setConnectionState("CONNECTING");
+      refreshAll();
+    });
+  }
+  const unreachableCloseBtn = $("#server-unreachable-close-btn");
+  if (unreachableCloseBtn) {
+    unreachableCloseBtn.addEventListener("click", () => {
+      hideServerUnreachableModal();
+    });
+  }
+
+  // Header Server button (permanent reachable path from main UI)
+  const headerServerBtn = $("#header-server-btn");
+  if (headerServerBtn) {
+    headerServerBtn.addEventListener("click", () => {
+      showServerSetup();
+    });
+  }
 
   // Connection Banner action buttons
   $("#banner-retry-btn").addEventListener("click", () => {
@@ -2786,10 +2874,16 @@ function init() {
     refreshAll();
   });
   $("#banner-settings-btn").addEventListener("click", () => {
-    switchToTab("tab-diet");
-    const card = $("#server-settings-card");
-    if (card) card.scrollIntoView({ behavior: "smooth" });
+    showServerSetup();
   });
+
+  const statusPill = $("#server-status-pill");
+  if (statusPill) {
+    statusPill.style.cursor = "pointer";
+    statusPill.addEventListener("click", () => {
+      showServerSetup();
+    });
+  }
 
   // Server settings card buttons (Tab 2)
   $("#server-save-btn").addEventListener("click", saveServerSettings);

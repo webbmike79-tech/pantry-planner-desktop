@@ -26,6 +26,7 @@
            autocomplete="off" autocapitalize="off" spellcheck="false">
     <button id="setup-save-btn" class="btn btn-primary btn-big">Save &amp; Connect</button>
     <p id="setup-msg" class="form-msg" role="status"></p>
+    <button id="setup-to-server-btn" class="btn btn-accent" type="button" style="margin-top: 10px; width: 100%;">🏠 Connect to a home server instead</button>
     <button id="setup-skip-btn" class="btn btn-ghost">Browse without a key
       <small>(photo scans &amp; menu generation need one)</small></button>
   </div>
@@ -51,7 +52,24 @@
            autocomplete="off" autocapitalize="off" spellcheck="false">
     <button id="setup-server-test-btn" class="btn btn-primary btn-big">Connect</button>
     <p id="setup-server-msg" class="form-msg" role="status"></p>
-    <button id="setup-server-skip-btn" class="btn btn-ghost">Use Standalone / Local Only</button>
+    <div class="btn-row" style="display: flex; gap: 8px; margin-top: 10px;">
+      <button id="setup-server-skip-btn" class="btn btn-ghost" style="flex: 1;">Use Standalone / Local Only</button>
+      <button id="setup-server-close-btn" class="btn btn-ghost" type="button" style="flex: 1;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Server Unreachable Modal ===== -->
+<div id="server-unreachable-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">🔌</div>
+    <h2 id="server-unreachable-title">Home Server Unreachable</h2>
+    <p id="server-unreachable-text">Your Home Server can't be reached at the stored address. Check that your computer is awake and connected to the same Wi-Fi, or update the server address.</p>
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+      <button id="server-unreachable-edit-btn" class="btn btn-primary btn-big" type="button">✏️ Edit Server Address</button>
+      <button id="server-unreachable-retry-btn" class="btn btn-accent" type="button">🔄 Retry Connection</button>
+      <button id="server-unreachable-close-btn" class="btn btn-ghost" type="button">Dismiss</button>
+    </div>
   </div>
 </div>
 
@@ -183,7 +201,13 @@
 <header class="app-header">
   <div class="header-top">
     <h1>🥘 Pantry Planner</h1>
-    <button id="header-refresh-btn" class="header-refresh-btn" type="button" title="Refresh all data" aria-label="Refresh">🔄</button>
+    <div class="header-actions">
+      <button id="header-server-btn" class="header-server-btn" type="button" title="Server Connection &amp; Address" aria-label="Server Connection">
+        <span id="header-server-dot" class="status-dot"></span>
+        <span id="header-server-label">Server</span>
+      </button>
+      <button id="header-refresh-btn" class="header-refresh-btn" type="button" title="Refresh all data" aria-label="Refresh">🔄</button>
+    </div>
   </div>
   <div id="kitchen-name-banner" class="kitchen-name-badge" hidden></div>
   <div class="banner">🎃 Spooky Harvest Kitchen Mode</div>
