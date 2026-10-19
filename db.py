@@ -169,12 +169,18 @@ def init_db(household: Optional[str] = None, force: bool = False):
             dietary_tags TEXT,
             custom_diet_notes TEXT,
             essential_staples TEXT,
-            kitchen_name TEXT DEFAULT ''
+            kitchen_name TEXT DEFAULT '',
+            religious_presets TEXT DEFAULT '[]'
         )
     """)
 
     try:
         c.execute(f"ALTER TABLE {set_tbl} ADD COLUMN kitchen_name TEXT DEFAULT ''")
+    except Exception:
+        pass
+
+    try:
+        c.execute(f"ALTER TABLE {set_tbl} ADD COLUMN religious_presets TEXT DEFAULT '[]'")
     except Exception:
         pass
 
@@ -193,8 +199,8 @@ def init_db(household: Optional[str] = None, force: bool = False):
         default_tags = json.dumps(["Balanced & Whole Foods"])
         default_staples = "Olive oil, garlic powder, onion powder, black pepper, broth, fresh veggies, water"
         c.execute(f"""
-            INSERT INTO {set_tbl} (id, base_headcount, dietary_tags, custom_diet_notes, essential_staples, kitchen_name)
-            VALUES (1, 2, ?, 'Provide wholesome meals tailored to any household restrictions entered below.', ?, '')
+            INSERT INTO {set_tbl} (id, base_headcount, dietary_tags, custom_diet_notes, essential_staples, kitchen_name, religious_presets)
+            VALUES (1, 2, ?, 'Provide wholesome meals tailored to any household restrictions entered below.', ?, '', '[]')
         """, (default_tags, default_staples))
 
     conn.commit()

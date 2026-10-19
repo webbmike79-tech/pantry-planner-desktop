@@ -36,6 +36,32 @@ const DIET_TAGS = [
   "Vegetarian",
   "Vegan",
 ];
+const RELIGIOUS_PRESETS = [
+  {
+    name: "Halal",
+    desc: "Excludes pork and pork derivatives, and alcohol in any form.",
+  },
+  {
+    name: "Kosher",
+    desc: "Excludes pork, shellfish, and mixing meat/poultry with dairy in the same meal.",
+  },
+  {
+    name: "Hindu",
+    desc: "Excludes beef and veal in all forms.",
+  },
+  {
+    name: "Jain",
+    desc: "Excludes meat, poultry, fish, eggs, root vegetables, onion, and garlic.",
+  },
+  {
+    name: "Latter-day Saint",
+    desc: "Excludes alcohol in any form, coffee, and tea from the tea plant.",
+  },
+  {
+    name: "Lent (Fridays)",
+    desc: "Excludes land meat on Fridays during plan generation. Seafood is allowed.",
+  },
+];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const state = {
@@ -1081,22 +1107,47 @@ async function submitAddItem() {
 
 function buildDietForm() {
   const tags = $("#diet-tags");
-  tags.innerHTML = "";
-  DIET_TAGS.forEach((tag) => {
-    const label = document.createElement("label");
-    label.className = "check-line";
-    label.innerHTML = `<input type="checkbox" value="${esc(tag)}"><span>${esc(tag)}</span>`;
-    tags.appendChild(label);
-  });
+  if (tags) {
+    tags.innerHTML = "";
+    DIET_TAGS.forEach((tag) => {
+      const label = document.createElement("label");
+      label.className = "check-line";
+      label.innerHTML = `<input type="checkbox" value="${esc(tag)}"><span>${esc(tag)}</span>`;
+      tags.appendChild(label);
+    });
+  }
+
+  const relList = $("#religious-presets-list");
+  if (relList) {
+    relList.innerHTML = "";
+    RELIGIOUS_PRESETS.forEach((preset) => {
+      const label = document.createElement("label");
+      label.className = "check-line preset-chip";
+      label.style.display = "flex";
+      label.style.flexDirection = "column";
+      label.style.alignItems = "flex-start";
+      label.style.marginBottom = "8px";
+      label.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" value="${esc(preset.name)}">
+          <b>${esc(preset.name)}</b>
+        </div>
+        <span style="font-size: 0.85rem; color: var(--text-dim, #777); margin-left: 24px;">${esc(preset.desc)}</span>
+      `;
+      relList.appendChild(label);
+    });
+  }
 
   const grid = $("#day-headcounts");
-  grid.innerHTML = "";
-  DAYS.forEach((day) => {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `<label for="hc-${day}">${day} Headcount</label>
-      <input id="hc-${day}" type="number" min="1" max="100" value="2">`;
-    grid.appendChild(wrap);
-  });
+  if (grid) {
+    grid.innerHTML = "";
+    DAYS.forEach((day) => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `<label for="hc-${day}">${day} Headcount</label>
+        <input id="hc-${day}" type="number" min="1" max="100" value="2">`;
+      grid.appendChild(wrap);
+    });
+  }
 }
 
 function fillDietForm() {
@@ -1105,7 +1156,10 @@ function fillDietForm() {
   const s = state.settings;
   $("#base-headcount").value = s.base_headcount;
   document.querySelectorAll("#diet-tags input[type=checkbox]").forEach((cb) => {
-    cb.checked = s.dietary_tags.includes(cb.value);
+    cb.checked = (s.dietary_tags || []).includes(cb.value);
+  });
+  document.querySelectorAll("#religious-presets-list input[type=checkbox]").forEach((cb) => {
+    cb.checked = (s.religious_presets || []).includes(cb.value);
   });
   $("#custom-notes").value = s.custom_diet_notes || "";
   $("#staples").value = s.essential_staples || "";
@@ -1114,8 +1168,39 @@ function fillDietForm() {
   try { saved = JSON.parse(localStorage.getItem(HC_STORAGE) || "{}"); } catch (e) { saved = {}; }
   DAYS.forEach((day) => {
     const el = document.getElementById(`hc-${day}`);
-    el.value = saved[day] != null ? saved[day] : s.base_headcount;
+    if (el) el.value = saved[day] != null ? saved[day] : s.base_headcount;
   });
+}
+
+async function saveReligiousPresets() {
+  const msg = $("#religious-msg");
+  if (!isOnline()) {
+    setMsg(msg, "Cannot update presets while offline.", "err");
+    toast("⚠️ Reconnect to Home Server to save settings.");
+    return;
+  }
+  const activePresets = Array.from(document.querySelectorAll("#religious-presets-list input:checked")).map((cb) => cb.value);
+  const currentSettings = state.settings || {
+    base_headcount: 2,
+    dietary_tags: ["Balanced & Whole Foods"],
+    custom_diet_notes: "",
+    essential_staples: "",
+  };
+  const body = {
+    base_headcount: currentSettings.base_headcount || 2,
+    dietary_tags: currentSettings.dietary_tags || [],
+    custom_diet_notes: currentSettings.custom_diet_notes || "",
+    essential_staples: currentSettings.essential_staples || "",
+    religious_presets: activePresets,
+  };
+  try {
+    state.settings = await api("/api/settings", { method: "PUT", body });
+    localStorage.setItem(CACHE_SETTINGS_STORAGE, JSON.stringify(state.settings));
+    setMsg(msg, "✅ Faith & tradition presets saved!", "ok");
+    toast("Faith & tradition presets saved!");
+  } catch (e) {
+    setMsg(msg, e.message, "err");
+  }
 }
 
 function fillGrocerySettings() {
@@ -1168,6 +1253,7 @@ async function saveDiet() {
     dietary_tags: Array.from(document.querySelectorAll("#diet-tags input:checked")).map((cb) => cb.value),
     custom_diet_notes: $("#custom-notes").value,
     essential_staples: $("#staples").value,
+    religious_presets: Array.from(document.querySelectorAll("#religious-presets-list input:checked")).map((cb) => cb.value),
   };
   try {
     state.settings = await api("/api/settings", { method: "PUT", body });
@@ -2732,6 +2818,8 @@ function init() {
 
   /* Diet tab */
   $("#diet-save-btn").addEventListener("click", saveDiet);
+  const religiousSaveBtn = $("#religious-save-btn");
+  if (religiousSaveBtn) religiousSaveBtn.addEventListener("click", saveReligiousPresets);
   const grocerySaveBtn = $("#grocery-save-btn");
   if (grocerySaveBtn) grocerySaveBtn.addEventListener("click", saveGrocerySettings);
   const groceryClearBtn = $("#grocery-clear-btn");
