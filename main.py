@@ -28,6 +28,7 @@ import os
 import re
 import sqlite3
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("pantry_planner.main")
 from datetime import datetime
 from pathlib import Path
