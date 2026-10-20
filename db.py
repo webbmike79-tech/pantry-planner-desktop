@@ -3,13 +3,20 @@ import hashlib
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
+if __name__ in ("db", "api.db"):
+    sys.modules["db"] = sys.modules[__name__]
+    sys.modules["api.db"] = sys.modules[__name__]
+
 logger = logging.getLogger("pantry_planner.db")
 
 BASE_DIR = Path(__file__).resolve().parent
+if BASE_DIR.name == "api":
+    BASE_DIR = BASE_DIR.parent
 
 def get_db_file() -> str:
     path = os.environ.get("PANTRY_DB_FILE")

@@ -2005,6 +2005,7 @@ def api_save_provider_model(body: SaveProviderModelRequest, request: Request):
 @app.on_event("startup")
 async def startup_resilience_probe():
     """Run initial probe at startup and launch 24h background watchdog loop."""
+    phone_access.check_household_allowlist_startup_warning(force=True)
     if os.environ.get("PANTRY_TEST_MODE"):
         return
     import asyncio

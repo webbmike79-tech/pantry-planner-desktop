@@ -23,22 +23,31 @@ home network is plain HTTP.
 
 import io
 import json
+import logging
 import os
 import re
 import secrets
 import socket
+import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
+
+if __name__ in ("phone_access", "api.phone_access"):
+    sys.modules["phone_access"] = sys.modules[__name__]
+    sys.modules["api.phone_access"] = sys.modules[__name__]
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
+logger = logging.getLogger("pantry_planner.phone_access")
+
 DEFAULT_CONFIG = {
     "phone_access": None,
     "access_code": "",
+    "household_allowlist": [],
     "provider_keys": {"gemini": "", "groq": "", "openrouter": ""},
     "provider_models": {
         "gemini": "gemini-3.8-flash",
@@ -47,6 +56,48 @@ DEFAULT_CONFIG = {
         "openrouter": "nvidia/nemotron-3.5-super-vl:free",
     },
 }
+
+_WARNED_ALLOWLIST = False
+
+
+def get_household_allowlist(env: Optional[dict] = None, cfg: Optional[dict] = None) -> Optional[Set[str]]:
+    """Return set of allowlisted household codes if PANTRY_HOUSEHOLD_ALLOWLIST is set and non-empty.
+    Values are exact codes stripped of leading/trailing whitespace.
+    Never logs or prints the values.
+    """
+    source = env if env is not None else os.environ
+    raw = source.get("PANTRY_HOUSEHOLD_ALLOWLIST")
+    if raw is not None:
+        raw = raw.strip()
+        if not raw:
+            return None
+        codes = {c.strip() for c in raw.split(",") if c.strip()}
+        return codes if codes else None
+
+    # Fallback to config if env var is not present
+    c = cfg if cfg is not None else (load_config() if not os.environ.get("PANTRY_TEST_MODE") or os.environ.get("PANTRY_CONFIG_FILE") else {})
+    cfg_val = c.get("household_allowlist")
+    if isinstance(cfg_val, list):
+        codes = {str(x).strip() for x in cfg_val if str(x).strip()}
+        return codes if codes else None
+    elif isinstance(cfg_val, str) and cfg_val.strip():
+        codes = {x.strip() for x in cfg_val.split(",") if x.strip()}
+        return codes if codes else None
+    return None
+
+
+def check_household_allowlist_startup_warning(force: bool = False, logger_instance=None):
+    """Log a loud warning if MULTI_HOUSEHOLD=1 and PANTRY_HOUSEHOLD_ALLOWLIST is unset."""
+    global _WARNED_ALLOWLIST
+    from db import is_multi_household
+
+    if is_multi_household() and get_household_allowlist() is None:
+        if not _WARNED_ALLOWLIST or force:
+            log = logger_instance or logger
+            log.warning(
+                "MULTI_HOUSEHOLD is on without PANTRY_HOUSEHOLD_ALLOWLIST — any code creates a kitchen. Set the allowlist before public hosting."
+            )
+            _WARNED_ALLOWLIST = True
 
 # Visible ASCII only (no spaces): the code travels in an HTTP header, and
 # header values with other characters can be rejected by phone WebViews.
@@ -68,7 +119,10 @@ def config_path() -> Path:
         return Path(override)
     if os.environ.get("PANTRY_TEST_MODE"):
         raise RuntimeError("CRITICAL: PANTRY_TEST_MODE is active but PANTRY_CONFIG_FILE is not set! Aborting to protect live config.")
-    return Path(__file__).resolve().parent / "pantry_desktop_config.json"
+    base = Path(__file__).resolve().parent
+    if base.name == "api":
+        base = base.parent
+    return base / "pantry_desktop_config.json"
 
 
 def load_config() -> dict:
@@ -85,6 +139,12 @@ def load_config() -> dict:
         # Honour any non-empty stored code as-is (never fail open on odd edits).
         if isinstance(code, str):
             cfg["access_code"] = code
+        if "household_allowlist" in data:
+            al = data["household_allowlist"]
+            if isinstance(al, list):
+                cfg["household_allowlist"] = [str(x) for x in al if str(x).strip()]
+            elif isinstance(al, str):
+                cfg["household_allowlist"] = [x.strip() for x in al.split(",") if x.strip()]
         pk = data.get("provider_keys")
         if isinstance(pk, dict):
             cfg["provider_keys"] = {
@@ -115,6 +175,8 @@ def save_config(cfg: dict) -> None:
             "phone_access": cfg.get("phone_access"),
             "access_code": cfg.get("access_code", ""),
         }
+        if cfg.get("household_allowlist"):
+            out["household_allowlist"] = cfg["household_allowlist"]
         pk = cfg.get("provider_keys")
         if isinstance(pk, dict) and any(pk.values()):
             out["provider_keys"] = pk
@@ -225,6 +287,10 @@ class PhoneAccessMiddleware(BaseHTTPMiddleware):
     layer wraps it and 401/403 replies still carry CORS headers (otherwise a
     phone app would see a bare network error instead of a readable message)."""
 
+    def __init__(self, app):
+        super().__init__(app)
+        check_household_allowlist_startup_warning()
+
     async def dispatch(self, request: Request, call_next):
         from db import is_multi_household, current_household_var, init_db
 
@@ -248,6 +314,13 @@ class PhoneAccessMiddleware(BaseHTTPMiddleware):
             if not token:
                 return JSONResponse(
                     {"detail": "Household access code required. Enter your code in Settings."},
+                    status_code=401,
+                )
+
+            allowlist = get_household_allowlist()
+            if allowlist is not None and token not in allowlist:
+                return JSONResponse(
+                    {"detail": "That kitchen code isn't recognized. Check the code and try again."},
                     status_code=401,
                 )
 
