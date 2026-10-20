@@ -43,6 +43,7 @@ DEFAULT_CONFIG = {
     "provider_models": {
         "gemini": "gemini-3.8-flash",
         "groq": "qwen/qwen3.8-27b",
+        "groq_generate": "openai/gpt-oss-120b",
         "openrouter": "nvidia/nemotron-3.5-super-vl:free",
     },
 }
@@ -93,9 +94,12 @@ def load_config() -> dict:
             }
         pm = data.get("provider_models")
         if isinstance(pm, dict):
+            groq_m = str(pm.get("groq", "") or "qwen/qwen3.8-27b")
+            groq_gen_m = str(pm.get("groq_generate", "") or (groq_m if "groq_generate" not in pm else "openai/gpt-oss-120b"))
             cfg["provider_models"] = {
                 "gemini": str(pm.get("gemini", "") or "gemini-3.8-flash"),
-                "groq": str(pm.get("groq", "") or "qwen/qwen3.8-27b"),
+                "groq": groq_m,
+                "groq_generate": groq_gen_m,
                 "openrouter": str(pm.get("openrouter", "") or "nvidia/nemotron-3.5-super-vl:free"),
             }
     return cfg

@@ -1806,8 +1806,15 @@ async function runTests() {
           checked_display: "9:41 AM",
         },
         groq: {
-          name: "Groq",
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          name: "Groq (scans)",
+          model: "qwen/qwen3.8-27b",
+          state: "ok",
+          status_word: "Working",
+          checked_display: "9:41 AM",
+        },
+        groq_generate: {
+          name: "Groq (plans)",
+          model: "openai/gpt-oss-120b",
           state: "ok",
           status_word: "Working",
           checked_display: "9:41 AM",
@@ -1828,8 +1835,16 @@ async function runTests() {
     assert.ok(groqSummaryEl, "Groq summary element exists");
     assert.strictEqual(
       groqSummaryEl.textContent,
-      "Groq — meta-llama/llama-4-scout-17b-16e-instruct — Working — checked 9:41 AM",
-      "Desktop status line matches exact required format: Groq — meta-llama/llama-4-scout-17b-16e-instruct — Working — checked 9:41 AM"
+      "Groq (scans) — qwen/qwen3.8-27b — Working — checked 9:41 AM",
+      "Desktop status line matches exact required format: Groq (scans) — qwen/qwen3.8-27b — Working — checked 9:41 AM"
+    );
+
+    const groqGenSummaryEl = document.querySelector("#status-row-groq_generate .provider-summary-text");
+    assert.ok(groqGenSummaryEl, "Groq generate summary element exists");
+    assert.strictEqual(
+      groqGenSummaryEl.textContent,
+      "Groq (plans) — openai/gpt-oss-120b — Working — checked 9:41 AM",
+      "Desktop status line matches exact required format: Groq (plans) — openai/gpt-oss-120b — Working — checked 9:41 AM"
     );
 
     const geminiSummaryEl = document.querySelector("#status-row-gemini .provider-summary-text");
@@ -1844,7 +1859,8 @@ async function runTests() {
     const mockStatusPhone = {
       providers: {
         gemini: { name: "Gemini", state: "ok", status_word: "Working" },
-        groq: { name: "Groq", state: "ok", status_word: "Working" },
+        groq: { name: "Groq (scans)", state: "ok", status_word: "Working" },
+        groq_generate: { name: "Groq (plans)", state: "ok", status_word: "Working" },
         openrouter: { name: "OpenRouter", state: "down", status_word: "Down" },
       },
     };
@@ -1852,8 +1868,13 @@ async function runTests() {
 
     assert.strictEqual(
       groqSummaryEl.textContent,
-      "Groq — Working",
+      "Groq (scans) — Working",
       "Phone client receives sanitized status word only (no model or internal error)"
+    );
+    assert.strictEqual(
+      groqGenSummaryEl.textContent,
+      "Groq (plans) — Working",
+      "Phone client receives sanitized status word for Groq plans"
     );
     const orSummaryEl = document.querySelector("#status-row-openrouter .provider-summary-text");
     assert.strictEqual(
@@ -1921,7 +1942,33 @@ async function runTests() {
 
     await saveProviderModel("groq");
     assert.ok(groqMsg.textContent.includes("Groq model updated"), "Success message displayed on valid model save");
-    assert.strictEqual(groqInput.dataset.originalModel, "meta-llama/llama-4-scout-17b-16e-instruct");
+    assert.strictEqual(groqInput.dataset.originalModel, "qwen/qwen3.8-27b");
+
+    // 5. Test saveProviderModel for groq_generate (plans slot)
+    const groqGenInput = document.querySelector("#groq_generate-model-input");
+    const groqGenMsg = document.querySelector("#groq_generate-model-msg");
+    if (groqGenInput && groqGenMsg) {
+      groqGenInput.value = "openai/gpt-oss-120b";
+      fetchHandler = async (url, opts) => {
+        if (url.includes("/api/providers/model")) {
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => "application/json" },
+            json: async () => ({
+              ok: true,
+              provider: "groq_generate",
+              model: "openai/gpt-oss-120b",
+              message: "Groq model updated to openai/gpt-oss-120b.",
+            }),
+          };
+        }
+        return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({}) };
+      };
+      await saveProviderModel("groq_generate");
+      assert.ok(groqGenMsg.textContent.includes("Groq model updated"), "Success message displayed on valid groq_generate save");
+      assert.strictEqual(groqGenInput.dataset.originalModel, "openai/gpt-oss-120b");
+    }
 
     console.log("✓ Test 25 Passed: AI Services Status Panel & Model Config (desktop formatting, phone sanitization, model validation probe)");
     passed++;

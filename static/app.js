@@ -2713,7 +2713,7 @@ function renderProviderStatus(statusData) {
   const providers = statusData.providers;
   const isPhone = Boolean(storedServerUrl());
 
-  const pKeys = ["gemini", "groq", "openrouter"];
+  const pKeys = ["gemini", "groq", "groq_generate", "openrouter"];
   for (const p of pKeys) {
     const row = $(`#status-row-${p}`);
     if (!row) continue;
@@ -2723,7 +2723,13 @@ function renderProviderStatus(statusData) {
     const summaryEl = row.querySelector(".provider-summary-text");
     const noticeEl = row.querySelector(".provider-auto-update-notice");
 
-    const pName = info.name || (p === "gemini" ? "Gemini" : p === "groq" ? "Groq" : "OpenRouter");
+    const defaultNames = {
+      gemini: "Gemini",
+      groq: "Groq (scans)",
+      groq_generate: "Groq (plans)",
+      openrouter: "OpenRouter",
+    };
+    const pName = info.name || defaultNames[p] || (p === "gemini" ? "Gemini" : p === "groq" ? "Groq" : "OpenRouter");
     const statusWord = info.status_word || (info.state === "ok" ? "Working" : "Down");
 
     if (isPhone) {
@@ -2766,7 +2772,7 @@ async function saveProviderModel(provider) {
 
   const candidate = (inputEl.value || "").trim();
   const original = inputEl.dataset.originalModel || candidate;
-  const nameMap = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter" };
+  const nameMap = { gemini: "Gemini", groq: "Groq", groq_generate: "Groq", openrouter: "OpenRouter" };
   const provName = nameMap[provider] || provider;
 
   if (!candidate) {
@@ -2922,6 +2928,13 @@ function init() {
   if (groqModelBtn) {
     groqModelBtn.addEventListener("click", () => {
       saveProviderModel("groq");
+    });
+  }
+
+  const groqGenModelBtn = $("#groq_generate-model-save-btn");
+  if (groqGenModelBtn) {
+    groqGenModelBtn.addEventListener("click", () => {
+      saveProviderModel("groq_generate");
     });
   }
 

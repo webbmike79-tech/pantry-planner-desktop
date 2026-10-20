@@ -31,6 +31,7 @@ logger = logging.getLogger("pantry_planner.ai_fallback")
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_DEFAULT_MODEL = "qwen/qwen3.8-27b"
+GROQ_GENERATE_DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3.5-super-vl:free"
@@ -40,6 +41,7 @@ GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
 DEFAULT_PROVIDER_MODELS = {
     "gemini": GEMINI_DEFAULT_MODEL,
     "groq": GROQ_DEFAULT_MODEL,
+    "groq_generate": GROQ_GENERATE_DEFAULT_MODEL,
     "openrouter": OPENROUTER_DEFAULT_MODEL,
 }
 
@@ -143,6 +145,9 @@ def extract_provider_models(env: Optional[Dict[str, str]] = None) -> Dict[str, s
                             k_clean = k.lower().strip()
                             if k_clean in models and v and isinstance(v, str) and v.strip():
                                 models[k_clean] = v.strip()
+                        if "groq_generate" not in pm:
+                            # If groq_generate key is absent from config, generation uses provider_models.groq as today
+                            models["groq_generate"] = models.get("groq", GROQ_DEFAULT_MODEL)
         except Exception:
             pass
     return models
@@ -270,7 +275,12 @@ def _call_openai_compatible(
         "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
-    if "groq" in base_url and "gpt-oss" in model:
+    # Capability-driven completion limits:
+    # Reasoning models (e.g. gpt-oss, deepseek-r1, qwq) spend output tokens on internal thought chains
+    # before producing output, and weekly meal plan generation requires substantial token headroom.
+    # Groq supports max_completion_tokens up to 8192 for these models, preventing early truncation.
+    is_reasoning_or_large = any(k in model.lower() for k in ("gpt-oss", "reasoner", "deepseek-r1", "qwq"))
+    if "groq" in base_url and is_reasoning_or_large:
         payload["max_completion_tokens"] = 8192
 
     resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
@@ -405,7 +415,10 @@ def generate_structured_with_fallback(
             candidates = non_groq_candidates
 
     models = extract_provider_models(env)
-    all_down = all(is_provider_down(p_name) for p_name, _ in candidates)
+    all_down = all(
+        is_provider_down("groq_generate" if (p_name == "groq" and effective_action == "generate_plan") else p_name)
+        for p_name, _ in candidates
+    )
     if all_down and len(candidates) > 0:
         logger.info("All providers are marked DOWN in watchdog probe status; attempting all in normal order as fallback.")
 
@@ -413,17 +426,20 @@ def generate_structured_with_fallback(
     last_errors: List[str] = []
 
     for provider_name, api_key in candidates:
-        if not all_down and is_provider_down(provider_name):
-            reason = get_provider_down_reason(provider_name)
-            logger.info("Skipping provider %s: latest probe state is DOWN (%s)", provider_name, reason)
+        duty_slot = "groq_generate" if (provider_name == "groq" and effective_action == "generate_plan") else provider_name
+        if not all_down and is_provider_down(duty_slot):
+            reason = get_provider_down_reason(duty_slot)
+            logger.info("Skipping provider %s (%s): latest probe state is DOWN (%s)", provider_name, duty_slot, reason)
             continue
 
-        active_model = models.get(
-            provider_name,
-            GEMINI_DEFAULT_MODEL if provider_name == "gemini" else (
-                GROQ_DEFAULT_MODEL if provider_name == "groq" else OPENROUTER_DEFAULT_MODEL
-            )
-        )
+        if provider_name == "groq" and effective_action == "generate_plan":
+            active_model = models.get("groq_generate") or models.get("groq", GROQ_DEFAULT_MODEL)
+        elif provider_name == "groq":
+            active_model = models.get("groq", GROQ_DEFAULT_MODEL)
+        elif provider_name == "gemini":
+            active_model = models.get("gemini", GEMINI_DEFAULT_MODEL)
+        else:
+            active_model = models.get("openrouter", OPENROUTER_DEFAULT_MODEL)
         logger.info("Attempting AI request for '%s' using provider: %s (model: %s)", what, provider_name, active_model)
         is_primary = (provider_name == candidates[0][0])
         max_attempts = 2 if is_primary else 1
@@ -476,7 +492,7 @@ def generate_structured_with_fallback(
 
                 cleaned_text = _clean_json_markdown(raw_text)
                 parsed = schema.model_validate_json(cleaned_text)
-                mark_provider_ok(provider_name, env=env)
+                mark_provider_ok(duty_slot, env=env)
                 duration_ms = int((time.time() - attempt_start) * 1000)
                 logger.info(
                     "AI attempt timing: action='%s' provider='%s' model='%s' attempt=%d duration_ms=%d outcome='success'",
@@ -700,7 +716,12 @@ def mark_provider_ok(provider: str, env: Optional[Dict[str, str]] = None) -> Non
     now_iso = now_dt.isoformat()
     now_display = now_dt.strftime("%I:%M %p").lstrip("0")
     models = extract_provider_models(env)
-    name_map = {"gemini": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
+    name_map = {
+        "gemini": "Gemini",
+        "groq": "Groq (scans)",
+        "groq_generate": "Groq (plans)",
+        "openrouter": "OpenRouter",
+    }
     if p not in _PROVIDER_STATUS_CACHE:
         _PROVIDER_STATUS_CACHE[p] = {
             "provider": p,
@@ -742,7 +763,7 @@ def is_vision_model(model_info: Any) -> bool:
         return False
 
     # Negative patterns: text-only, whisper, guard, etc.
-    text_only = ["llama-3.1-8b", "llama-3.3-70b", "whisper", "guard", "orpheus", "allam", "qwen-2.5-72b"]
+    text_only = ["llama-3.1-8b", "llama-3.3-70b", "whisper", "guard", "orpheus", "allam", "qwen-2.5-72b", "gpt-oss"]
     for t in text_only:
         if t in model_id:
             return False
@@ -753,8 +774,9 @@ def is_vision_model(model_info: Any) -> bool:
 
 
 def auto_discover_substitute(provider: str, available_models: List[Dict[str, Any]]) -> Optional[str]:
-    """Select a vision-capable substitute when configured model is absent.
-    Groq: Llama vision/Scout line first, then any other vision model.
+    """Select a suitable substitute when configured model is absent.
+    Groq (scans): vision-capable only. Llama vision/Scout line first, then any other vision model.
+    Groq (plans): text models only (never offered vision-only constraint). High-capacity/reasoning first.
     OpenRouter: Gemini Flash :free first, then any :free vision model, then other vision.
     Gemini: NEVER auto-substituted (returns None).
     Deterministic order (sorted by ID), first match wins.
@@ -776,6 +798,25 @@ def auto_discover_substitute(provider: str, available_models: List[Dict[str, Any
         scout_family.sort(key=lambda x: str(x.get("id", "")))
         other_vision.sort(key=lambda x: str(x.get("id", "")))
         ordered = scout_family + other_vision
+        return ordered[0]["id"] if ordered else None
+
+    if provider == "groq_generate":
+        # Generate slot: text models only (filter out audio/guard/whisper/vision-only)
+        text_models = [
+            m for m in available_models
+            if not any(t in str(m.get("id", "")).lower() for t in ("whisper", "guard", "orpheus", "vision-preview"))
+        ]
+        if not text_models:
+            return None
+        # Preference 1: High-capacity / reasoning text models (gpt-oss, llama-3.3, 70b, 120b)
+        high_cap = [
+            m for m in text_models
+            if any(k in str(m.get("id", "")).lower() for k in ("gpt-oss", "llama-3.3", "70b", "120b"))
+        ]
+        other_text = [m for m in text_models if m not in high_cap]
+        high_cap.sort(key=lambda x: str(x.get("id", "")))
+        other_text.sort(key=lambda x: str(x.get("id", "")))
+        ordered = high_cap + other_text
         return ordered[0]["id"] if ordered else None
 
     if provider == "openrouter":
@@ -817,7 +858,7 @@ def _probe_minimal_completion(provider: str, model: str, api_key: str) -> Tuple[
                 config=types.GenerateContentConfig(max_output_tokens=2, temperature=0),
             )
             return True, 200, None
-        elif provider == "groq":
+        elif provider in ("groq", "groq_generate"):
             url = f"{GROQ_BASE_URL.rstrip('/')}/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {"model": model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 2}
@@ -853,12 +894,17 @@ def probe_provider(
     allow_substitute: bool = True,
 ) -> Dict[str, Any]:
     """Execute a health probe for one provider.
-    (a) For OpenAI-compatible (Groq, OpenRouter): check configured model exists in /models.
-    (b) For all three: execute ONE minimal text completion.
+    (a) For OpenAI-compatible (Groq scans, Groq plans, OpenRouter): check configured model exists in /models and meets slot constraints.
+    (b) For all: execute ONE minimal text completion.
     Returns status dictionary.
     """
     provider = provider.lower().strip()
-    name_map = {"gemini": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
+    name_map = {
+        "gemini": "Gemini",
+        "groq": "Groq (scans)",
+        "groq_generate": "Groq (plans)",
+        "openrouter": "OpenRouter",
+    }
     name = name_map.get(provider, provider.capitalize())
     models = extract_provider_models(env)
     configured_model = model or models.get(provider, DEFAULT_PROVIDER_MODELS.get(provider, ""))
@@ -866,7 +912,8 @@ def probe_provider(
     if keys is None:
         keys = extract_provider_keys(headers={}, env=env)
 
-    api_key = getattr(keys, f"{provider}_key", None)
+    key_attr = "groq_key" if provider in ("groq", "groq_generate") else f"{provider}_key"
+    api_key = getattr(keys, key_attr, None)
     now_dt = datetime.now()
     now_iso = now_dt.isoformat()
     now_display = now_dt.strftime("%I:%M %p").lstrip("0")
@@ -888,9 +935,9 @@ def probe_provider(
         _save_status_cache_to_disk(env)
         return result
 
-    # 1. For OpenAI-compatible: GET /models and check if model is present
-    if provider in ("groq", "openrouter"):
-        base_url = GROQ_BASE_URL if provider == "groq" else OPENROUTER_BASE_URL
+    # 1. For OpenAI-compatible: GET /models and check if model is present and valid for slot duty
+    if provider in ("groq", "groq_generate", "openrouter"):
+        base_url = GROQ_BASE_URL if provider in ("groq", "groq_generate") else OPENROUTER_BASE_URL
         models_url = f"{base_url.rstrip('/')}/models"
         headers = {"Authorization": f"Bearer {api_key}"}
         if provider == "openrouter":
@@ -921,8 +968,16 @@ def probe_provider(
             available = data.get("data", []) if isinstance(data, dict) else []
             model_ids = [m.get("id", "") for m in available if isinstance(m, dict)]
 
-            if configured_model not in model_ids:
-                # Configured model is missing!
+            model_is_valid = configured_model in model_ids
+            # Vision slot constraint: Groq vision slot must be vision-capable
+            if model_is_valid and provider == "groq" and not is_vision_model(configured_model):
+                model_is_valid = False
+            # Generate slot constraint: Groq generate slot must not be audio/guard
+            if model_is_valid and provider == "groq_generate" and any(t in configured_model.lower() for t in ("whisper", "guard")):
+                model_is_valid = False
+
+            if not model_is_valid:
+                # Configured model is missing or invalid for duty!
                 if allow_substitute:
                     substitute = auto_discover_substitute(provider, available)
                     if substitute:
@@ -977,7 +1032,7 @@ def probe_provider(
                             "state": "down",
                             "status_word": "Down",
                             "status_code": 404,
-                            "error": f"Model '{configured_model}' not found in {name} /models and no substitute found",
+                            "error": f"Model '{configured_model}' not found in {name} /models or not valid for duty and no substitute found",
                             "auto_updated_msg": None,
                             "checked_at": now_iso,
                             "checked_display": now_display,
@@ -994,7 +1049,7 @@ def probe_provider(
                         "state": "down",
                         "status_word": "Down",
                         "status_code": 404,
-                        "error": f"Model '{configured_model}' not found in {name} /models",
+                        "error": f"Model '{configured_model}' not found in {name} /models or not valid for duty",
                         "auto_updated_msg": None,
                         "checked_at": now_iso,
                         "checked_display": now_display,
@@ -1059,8 +1114,8 @@ def probe_all_providers(
     env: Optional[Dict[str, str]] = None,
     allow_substitute: bool = True,
 ) -> Dict[str, Any]:
-    """Probe all 3 providers and persist results."""
-    for provider in ("gemini", "groq", "openrouter"):
+    """Probe all 4 provider slots (Gemini, Groq scans, Groq plans, OpenRouter) and persist results."""
+    for provider in ("gemini", "groq", "groq_generate", "openrouter"):
         probe_provider(provider, keys=keys, env=env, allow_substitute=allow_substitute)
     return get_providers_status(client_is_phone=False, env=env)
 
@@ -1076,8 +1131,13 @@ def get_providers_status(
         _load_status_cache_from_disk(env)
 
     models = extract_provider_models(env)
-    name_map = {"gemini": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
-    for p in ("gemini", "groq", "openrouter"):
+    name_map = {
+        "gemini": "Gemini",
+        "groq": "Groq (scans)",
+        "groq_generate": "Groq (plans)",
+        "openrouter": "OpenRouter",
+    }
+    for p in ("gemini", "groq", "groq_generate", "openrouter"):
         if p not in _PROVIDER_STATUS_CACHE:
             _PROVIDER_STATUS_CACHE[p] = {
                 "provider": p,
@@ -1119,15 +1179,14 @@ def save_provider_model_with_validation(
 ) -> Tuple[bool, str, Dict[str, Any]]:
     """Validates candidate model via probe without auto-discovery.
     If valid, saves into config and updates status cache.
-    If invalid (404 / not in list), refuses with exact required message.
+    If invalid (404 / not in list / not valid for slot duty), refuses with exact required message.
     """
     provider = provider.lower().strip()
     candidate_model = candidate_model.strip()
-    name_map = {"gemini": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
-    name = name_map.get(provider, provider.capitalize())
+    err_name = "Groq" if provider in ("groq", "groq_generate") else ("Gemini" if provider == "gemini" else "OpenRouter")
 
     if not candidate_model:
-        return False, f"Model name for {name} cannot be empty.", {}
+        return False, f"Model name for {err_name} cannot be empty.", {}
 
     probe_res = probe_provider(
         provider=provider,
@@ -1138,8 +1197,8 @@ def save_provider_model_with_validation(
     )
 
     if probe_res.get("state") != "ok":
-        err_msg = f"That model isn't available from {name} right now — check the name and try again."
+        err_msg = f"That model isn't available from {err_name} right now — check the name and try again."
         return False, err_msg, probe_res
 
     save_configured_model(provider, candidate_model, env=env)
-    return True, f"{name} model updated to {candidate_model}.", probe_res
+    return True, f"{err_name} model updated to {candidate_model}.", probe_res

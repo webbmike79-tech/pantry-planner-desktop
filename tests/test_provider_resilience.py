@@ -153,16 +153,26 @@ class TestProviderResilience(unittest.TestCase):
         desktop_status = get_providers_status(client_is_phone=False, env=self.test_env)
         self.assertIn("providers", desktop_status)
         self.assertIn("groq", desktop_status["providers"])
+        self.assertIn("groq_generate", desktop_status["providers"])
+        self.assertEqual(desktop_status["providers"]["groq"]["name"], "Groq (scans)")
+        self.assertEqual(desktop_status["providers"]["groq_generate"]["name"], "Groq (plans)")
         self.assertIn("model", desktop_status["providers"]["groq"])
+        self.assertIn("model", desktop_status["providers"]["groq_generate"])
         self.assertIn("checked_display", desktop_status["providers"]["groq"])
 
         phone_status = get_providers_status(client_is_phone=True, env=self.test_env)
         self.assertIn("providers", phone_status)
         self.assertIn("groq", phone_status["providers"])
+        self.assertIn("groq_generate", phone_status["providers"])
+        self.assertEqual(phone_status["providers"]["groq"]["name"], "Groq (scans)")
+        self.assertEqual(phone_status["providers"]["groq_generate"]["name"], "Groq (plans)")
         # Phone status must NOT expose model ID or internal debug errors
         self.assertNotIn("model", phone_status["providers"]["groq"])
+        self.assertNotIn("model", phone_status["providers"]["groq_generate"])
         self.assertNotIn("error", phone_status["providers"]["groq"])
+        self.assertNotIn("error", phone_status["providers"]["groq_generate"])
         self.assertIn("status_word", phone_status["providers"]["groq"])
+        self.assertIn("status_word", phone_status["providers"]["groq_generate"])
 
     @patch("ai_fallback._call_openai_compatible")
     @patch("ai_fallback._call_gemini")
@@ -253,6 +263,17 @@ class TestProviderResilience(unittest.TestCase):
         self.assertTrue("scout" in groq_sub or "vision" in groq_sub)
         self.assertTrue(is_vision_model(groq_sub))
 
+        # Groq generate slot check: text models only (never offered vision-only constraint)
+        groq_gen_models = [
+            {"id": "whisper-large-v3"},
+            {"id": "llama-guard-3-8b"},
+            {"id": "llama-3.1-8b-instant"},
+            {"id": "openai/gpt-oss-120b"},
+        ]
+        groq_gen_sub = auto_discover_substitute("groq_generate", groq_gen_models)
+        self.assertEqual(groq_gen_sub, "openai/gpt-oss-120b")
+        self.assertFalse(is_vision_model(groq_gen_sub))
+
         # OpenRouter preference check: Gemini Flash :free first, then any :free vision
         openrouter_models = [
             {"id": "meta-llama/llama-3.3-70b-instruct:free"},        # text-only
@@ -309,6 +330,109 @@ class TestProviderResilience(unittest.TestCase):
         self.assertTrue(ok_valid)
         models_after = extract_provider_models(self.test_env)
         self.assertEqual(models_after["groq"], "meta-llama/llama-4-scout-17b-16e-instruct")
+
+        # Attempt saving text-only model into Groq vision slot -> refused!
+        mock_resp.json.return_value = {
+            "data": [
+                {"id": "llama-3.1-8b-instant"},
+                {"id": "openai/gpt-oss-120b"},
+            ]
+        }
+        ok_text_in_vision, msg_text_in_vision, _ = save_provider_model_with_validation(
+            provider="groq",
+            candidate_model="llama-3.1-8b-instant",
+            keys=keys,
+            env=self.test_env,
+        )
+        self.assertFalse(ok_text_in_vision)
+        self.assertEqual(
+            msg_text_in_vision,
+            "That model isn't available from Groq right now — check the name and try again.",
+        )
+
+        # Attempt saving text model into Groq generate slot -> succeeds!
+        ok_gen, msg_gen, _ = save_provider_model_with_validation(
+            provider="groq_generate",
+            candidate_model="openai/gpt-oss-120b",
+            keys=keys,
+            env=self.test_env,
+        )
+        self.assertTrue(ok_gen)
+        models_after_gen = extract_provider_models(self.test_env)
+        self.assertEqual(models_after_gen["groq_generate"], "openai/gpt-oss-120b")
+
+    @patch("ai_fallback._call_openai_compatible")
+    def test_groq_duty_split_independent_routing_and_model_selection(self, mock_openai):
+        """Test Groq duties split: generate_plan uses groq_generate model, scans use groq model."""
+        keys = ProviderKeys(groq_key="groq-test-key", openrouter_key="or-test-key")
+        mock_openai.return_value = '{"message": "success"}'
+
+        # 1. Plan generation with 40 items uses groq_generate model
+        save_configured_model("groq", "qwen/qwen3.8-27b", env=self.test_env)
+        save_configured_model("groq_generate", "openai/gpt-oss-120b", env=self.test_env)
+
+        generate_structured_with_fallback(
+            keys=keys,
+            contents="generate plan payload",
+            schema=DummyModel,
+            temperature=0.2,
+            what="build your weekly menu",
+            action="generate_plan",
+            item_count=40,
+            env=self.test_env,
+        )
+        self.assertEqual(mock_openai.call_args.kwargs["model"], "openai/gpt-oss-120b")
+
+        # 2. Shelf scan uses groq vision model
+        generate_structured_with_fallback(
+            keys=keys,
+            contents="scan photo payload",
+            schema=DummyModel,
+            temperature=0.2,
+            what="scan your fridge photo",
+            action="scan_photo",
+            item_count=None,
+            env=self.test_env,
+        )
+        self.assertEqual(mock_openai.call_args.kwargs["model"], "qwen/qwen3.8-27b")
+
+        # 3. When groq_generate is DOWN: generate_plan skips Groq and falls back to OpenRouter
+        _PROVIDER_STATUS_CACHE["groq_generate"] = {
+            "provider": "groq_generate",
+            "state": "down",
+            "status_word": "Down",
+            "error": "Probe DOWN",
+        }
+        _PROVIDER_STATUS_CACHE["groq"] = {
+            "provider": "groq",
+            "state": "ok",
+            "status_word": "Working",
+        }
+
+        _, served_by_plan = generate_structured_with_fallback(
+            keys=keys,
+            contents="generate plan payload",
+            schema=DummyModel,
+            temperature=0.2,
+            what="build your weekly menu",
+            action="generate_plan",
+            item_count=40,
+            env=self.test_env,
+        )
+        self.assertEqual(served_by_plan, "openrouter")
+
+        # But scan_photo is NOT down because groq (vision) is OK!
+        _, served_by_scan = generate_structured_with_fallback(
+            keys=keys,
+            contents="scan photo payload",
+            schema=DummyModel,
+            temperature=0.2,
+            what="scan your fridge photo",
+            action="scan_photo",
+            item_count=None,
+            env=self.test_env,
+        )
+        self.assertEqual(served_by_scan, "groq")
 
     @patch("ai_fallback._call_openai_compatible")
     @patch("ai_fallback._call_gemini")

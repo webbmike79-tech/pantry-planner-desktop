@@ -362,7 +362,11 @@
             <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
           </div>
           <div id="status-row-groq" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
-            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Groq — Loading…</div>
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Groq (scans) — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+          <div id="status-row-groq_generate" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Groq (plans) — Loading…</div>
             <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
           </div>
           <div id="status-row-openrouter" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
@@ -394,12 +398,21 @@
 
       <hr class="sep">
 
-      <label class="field-label" for="groq-model-input">Groq Model ID</label>
+      <label class="field-label" for="groq-model-input">Groq Model ID (Scans)</label>
       <div style="display: flex; gap: 8px; margin-bottom: 6px;">
         <input id="groq-model-input" type="text" placeholder="qwen/qwen3.8-27b" autocomplete="off" spellcheck="false" style="flex: 1;">
         <button id="groq-model-save-btn" class="btn btn-primary" type="button">Save</button>
       </div>
       <p class="form-msg" id="groq-model-msg" role="status"></p>
+
+      <hr class="sep">
+
+      <label class="field-label" for="groq_generate-model-input">Groq Model ID (Plans)</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="groq_generate-model-input" type="text" placeholder="openai/gpt-oss-120b" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="groq_generate-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="groq_generate-model-msg" role="status"></p>
 
       <hr class="sep">
 
