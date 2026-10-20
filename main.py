@@ -890,7 +890,15 @@ def get_client(api_key: str):
     return genai.Client(api_key=api_key)
 
 
-def _generate_structured(keys_or_key, contents, schema, temperature: float, what: str):
+def _generate_structured(
+    keys_or_key,
+    contents,
+    schema,
+    temperature: float,
+    what: str,
+    item_count: Optional[int] = None,
+    action: Optional[str] = None,
+):
     """Shared structured-output call routed through the AI provider fallback chain."""
     if isinstance(keys_or_key, ProviderKeys):
         keys = keys_or_key
@@ -898,7 +906,15 @@ def _generate_structured(keys_or_key, contents, schema, temperature: float, what
         keys = ProviderKeys(gemini_key=keys_or_key)
     else:
         keys = ProviderKeys()
-    return generate_structured_with_fallback(keys, contents, schema, temperature, what)
+    return generate_structured_with_fallback(
+        keys,
+        contents,
+        schema,
+        temperature,
+        what,
+        item_count=item_count,
+        action=action,
+    )
 
 
 BARE_GENERIC_NAMES = {
@@ -1083,7 +1099,13 @@ def generate_weekly_menu_and_list(
     """
 
     return _generate_structured(
-        keys, prompt, WeeklyPlanOutput, 0.3, "build your weekly menu"
+        keys,
+        prompt,
+        WeeklyPlanOutput,
+        0.3,
+        "build your weekly menu",
+        item_count=len(inv_records),
+        action="generate_plan",
     )
 
 

@@ -45,6 +45,9 @@ DEFAULT_PROVIDER_MODELS = {
 
 PROVIDER_ORDER = ["gemini", "groq", "openrouter"]
 
+# Groq free-tier TPM 8000 + 2048 completion cap truncates full-week plans beyond ~75 items.
+GROQ_GENERATION_MAX_ITEMS = 75
+
 
 class ProviderKeys(BaseModel):
     gemini_key: Optional[str] = None
@@ -356,6 +359,8 @@ def generate_structured_with_fallback(
     temperature: float,
     what: str,
     env: Optional[Dict[str, str]] = None,
+    item_count: Optional[int] = None,
+    action: Optional[str] = None,
 ) -> Tuple[BaseModel, str]:
     """
     Executes a structured output AI call following the fallback chain:
@@ -382,6 +387,20 @@ def generate_structured_with_fallback(
         raise RuntimeError(
             "No AI provider keys configured. Please enter your Gemini API key (or Groq/OpenRouter fallback key) in Settings."
         )
+
+    # Size-aware provider routing for plan generation:
+    # When inventory is large (item_count > GROQ_GENERATION_MAX_ITEMS), Groq free tier truncates full plans.
+    # For action == "generate_plan", remove Groq unless it is the only provider or removal would leave zero candidates.
+    effective_action = action or ("generate_plan" if what == "build your weekly menu" else "")
+    if effective_action == "generate_plan" and item_count is not None and item_count > GROQ_GENERATION_MAX_ITEMS:
+        groq_candidates = [c for c in candidates if c[0] == "groq"]
+        non_groq_candidates = [c for c in candidates if c[0] != "groq"]
+        if groq_candidates and non_groq_candidates:
+            logger.info(
+                "AI route skip: provider='groq' reason='inventory_size' items=%d threshold=%d action='%s'",
+                item_count, GROQ_GENERATION_MAX_ITEMS, effective_action
+            )
+            candidates = non_groq_candidates
 
     models = extract_provider_models(env)
     all_down = all(is_provider_down(p_name) for p_name, _ in candidates)
