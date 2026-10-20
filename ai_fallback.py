@@ -270,6 +270,8 @@ def _call_openai_compatible(
         "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
+    if "groq" in base_url and "gpt-oss" in model:
+        payload["max_completion_tokens"] = 8192
 
     resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
     resp.raise_for_status()
