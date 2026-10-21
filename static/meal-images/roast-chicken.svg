@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="roastBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a2810"/>
+      <stop offset="50%" stop-color="#8a4b16"/>
+      <stop offset="100%" stop-color="#d48834"/>
+    </linearGradient>
+    <linearGradient id="chickenSkin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d97724"/>
+      <stop offset="50%" stop-color="#b35412"/>
+      <stop offset="100%" stop-color="#692b03"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="200" fill="url(#roastBg)"/>
+  <!-- Platter shadow -->
+  <ellipse cx="200" cy="165" rx="140" ry="24" fill="#000000" opacity="0.35"/>
+  <!-- Platter -->
+  <ellipse cx="200" cy="155" rx="135" ry="24" fill="#f8f9fa"/>
+  <ellipse cx="200" cy="151" rx="125" ry="20" fill="#e9ecef"/>
+  <!-- Roasted Chicken Body -->
+  <ellipse cx="195" cy="132" rx="55" ry="32" fill="url(#chickenSkin)"/>
+  <!-- Drumstick / Wing -->
+  <ellipse cx="235" cy="122" rx="28" ry="16" fill="url(#chickenSkin)" transform="rotate(25, 235, 122)"/>
+  <!-- Bone -->
+  <path d="M260,110 L275,102" stroke="#f1f3f5" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="276" cy="100" r="4.5" fill="#f1f3f5"/>
+  <circle cx="277" cy="106" r="4.5" fill="#f1f3f5"/>
+  <!-- Rosemary Sprig -->
+  <path d="M140,148 Q170,135 200,140" fill="none" stroke="#2b8a3e" stroke-width="2.5"/>
+  <path d="M150,144 L152,138 M160,142 L164,136 M170,139 L175,134 M180,138 L185,133" stroke="#2b8a3e" stroke-width="2" stroke-linecap="round"/>
+  <!-- Roasted Herb Potatoes -->
+  <ellipse cx="140" cy="150" rx="14" ry="10" fill="#e0a96d"/>
+  <ellipse cx="155" cy="155" rx="12" ry="8" fill="#c48b4d"/>
+  <ellipse cx="240" cy="152" rx="13" ry="9" fill="#e0a96d"/>
+  <!-- Lemon Slice -->
+  <circle cx="132" cy="136" r="12" fill="#ffd43b" stroke="#fab005" stroke-width="2"/>
+  <circle cx="132" cy="136" r="8" fill="#ffe066"/>
+  <text x="20" y="38" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="bold" opacity="0.9" letter-spacing="1">🍗 ROAST CHICKEN &amp; POULTRY</text>
+</svg>

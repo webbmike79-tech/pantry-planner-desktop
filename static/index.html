@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🥘 Pantry Planner — Desktop</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>🥘 Pantry Planner</title>
+<meta name="theme-color" content="#16121d">
+<link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,195 +26,552 @@
            autocomplete="off" autocapitalize="off" spellcheck="false">
     <button id="setup-save-btn" class="btn btn-primary btn-big">Save &amp; Connect</button>
     <p id="setup-msg" class="form-msg" role="status"></p>
+    <button id="setup-to-server-btn" class="btn btn-accent" type="button" style="margin-top: 10px; width: 100%;">🏠 Connect to a home server instead</button>
     <button id="setup-skip-btn" class="btn btn-ghost">Browse without a key
       <small>(photo scans &amp; menu generation need one)</small></button>
   </div>
 </div>
 
-<div class="app-shell">
-  <!-- ===== Top bar: title + status ===== -->
-  <header class="topbar">
-    <div class="topbar-title">
-      <h1>🥘 Pantry Planner</h1>
-      <div class="banner">🎃 Spooky Harvest Kitchen Mode — Desktop</div>
+<!-- ===== Home Server setup overlay (for first-run on wrapped app or when server URL needed) ===== -->
+<div id="server-setup-screen" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">🏠</div>
+    <h2 id="setup-server-title">Connect to Server</h2>
+    <p id="setup-server-desc">Connect this device to Pantry Planner so you share inventory, recipes, and shopping lists.</p>
+    <div id="setup-server-url-group">
+      <label class="field-label" for="setup-server-url">Server Address</label>
+      <input id="setup-server-url" type="text" placeholder="http://192.168.4.159:8000"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint">Find this on your desktop app under <b>Connect Phone</b>.</p>
     </div>
-    <div class="status-bar">
-      <div class="stat"><span class="stat-num" id="stat-stock">0</span><span class="stat-label">📦 Stocked Items</span></div>
-      <div class="stat"><span class="stat-num" id="stat-headcount">–</span><span class="stat-label">👨‍👩‍👧 Headcount</span></div>
-      <div class="stat"><span class="stat-num" id="stat-cooked">0/7</span><span class="stat-label">🍳 Meals Cooked</span></div>
-      <div class="stat"><span class="stat-num" id="stat-tobuy">0</span><span class="stat-label">🛒 Items To Buy</span></div>
+    <details id="setup-server-advanced" style="margin: 10px 0; text-align: left;" hidden>
+      <summary style="cursor: pointer; color: var(--muted); font-size: 0.9rem;">Advanced (Server Address)</summary>
+    </details>
+    <label class="field-label" for="setup-server-token">Household Code / Access Code</label>
+    <input id="setup-server-token" type="text" placeholder="e.g. Maple River 42"
+           autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button id="setup-server-test-btn" class="btn btn-primary btn-big">Connect</button>
+    <p id="setup-server-msg" class="form-msg" role="status"></p>
+    <div class="btn-row" style="display: flex; gap: 8px; margin-top: 10px;">
+      <button id="setup-server-skip-btn" class="btn btn-ghost" style="flex: 1;">Use Standalone / Local Only</button>
+      <button id="setup-server-close-btn" class="btn btn-ghost" type="button" style="flex: 1;">Cancel</button>
     </div>
-  </header>
-
-  <div class="layout">
-    <!-- ===== Left sidebar navigation ===== -->
-    <aside class="sidebar">
-      <nav class="sidenav">
-        <button data-tab="tab-scan" class="active"><span class="nav-emoji">📸</span><span>Scan &amp; Stock</span></button>
-        <button data-tab="tab-diet"><span class="nav-emoji">👨‍👩‍👧</span><span>Household &amp; Diet</span></button>
-        <button data-tab="tab-menu"><span class="nav-emoji">📅</span><span>Weekly Menu</span></button>
-        <button data-tab="tab-shop"><span class="nav-emoji">🛒</span><span>Shopping &amp; Receipts</span></button>
-      </nav>
-      <p class="side-note">Photos: drag &amp; drop a picture onto a scan panel, or click to browse.</p>
-    </aside>
-
-    <main>
-      <!-- ===== Page 1: Scan & Stock ===== -->
-      <section id="tab-scan" class="tab-page active">
-        <h2>📸 Scan &amp; Stock</h2>
-        <div class="two-col two-col-scan">
-          <div class="card">
-            <h3>Snap or Upload Shelves</h3>
-            <div class="segmented" id="scan-location">
-              <button data-loc="Fridge" class="active">Fridge</button>
-              <button data-loc="Freezer">Freezer</button>
-              <button data-loc="Cupboard / Pantry">Pantry</button>
-            </div>
-            <div class="dropzone" id="scan-drop" tabindex="0" role="button"
-                 aria-label="Drop a shelf photo here or click to choose one">
-              <div class="dropzone-icon">📷</div>
-              <p><b>Drag &amp; drop</b> a shelf photo here<br>or click to choose a file</p>
-              <input id="scan-file" type="file" accept="image/*" hidden>
-            </div>
-            <p class="file-name" id="scan-file-name">No photo chosen yet</p>
-            <img id="scan-preview" class="photo-preview" alt="Shelf photo preview" hidden>
-            <button id="scan-btn" class="btn btn-accent" disabled>🔍 Scan Photo &amp; Log Items</button>
-            <p class="form-msg" id="scan-msg" role="status"></p>
-          </div>
-
-          <div class="card">
-            <h3>📦 Kitchen Inventory</h3>
-            <div class="inv-table-wrap">
-              <table class="inv-table">
-                <thead>
-                  <tr><th>Item</th><th class="col-qty">Qty</th><th class="col-unit">Unit</th>
-                      <th class="col-loc">Location</th><th class="col-cat">Category</th><th class="col-del"></th></tr>
-                </thead>
-                <tbody id="inventory-list"></tbody>
-              </table>
-            </div>
-            <p class="empty-note" id="inventory-empty">Nothing stocked yet — scan a shelf photo or add items by hand.</p>
-            <div class="btn-row">
-              <button id="inv-add-btn" class="btn">➕ Add Item</button>
-              <button id="inv-save-btn" class="btn btn-primary">💾 Save Inventory</button>
-              <button id="inv-clear-btn" class="btn btn-danger">🗑️ Clear All</button>
-            </div>
-            <p class="form-msg" id="inv-msg" role="status"></p>
-          </div>
-        </div>
-      </section>
-
-      <!-- ===== Page 2: Household & Diet ===== -->
-      <section id="tab-diet" class="tab-page">
-        <h2>👨‍👩‍👧 Household &amp; Diet</h2>
-        <div class="two-col">
-          <div class="card">
-            <h3>Household Size &amp; Holiday Scaling</h3>
-            <label class="field-label" for="base-headcount">Standard Household Headcount</label>
-            <input id="base-headcount" type="number" min="1" max="50" value="2">
-            <p class="hint">Scale individual days for guests or holidays (e.g., 20 for Thanksgiving).</p>
-            <div class="day-grid" id="day-headcounts"></div>
-          </div>
-
-          <div class="card">
-            <h3>🥗 Dietary Restrictions &amp; Allergies</h3>
-            <div id="diet-tags" class="tag-list"></div>
-            <label class="field-label" for="custom-notes">Specific Medical Needs, Allergies, or Favorite Cuisines</label>
-            <textarea id="custom-notes" rows="3" placeholder="e.g., Type 2 diabetes for one member, severe peanut allergy for another, prefer Tex-Mex or German cuisine."></textarea>
-            <label class="field-label" for="staples">Essential Staples to Always Check (Seasonings, Drinks, Veggies)</label>
-            <textarea id="staples" rows="2"></textarea>
-            <button id="diet-save-btn" class="btn btn-primary">💾 Save Household &amp; Diet Settings</button>
-            <p class="form-msg" id="diet-msg" role="status"></p>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>🔑 Gemini API Key</h3>
-          <p class="hint">Your key is stored <b>only on this computer</b> (browser localStorage) and is sent
-            only to Google (through this app's backend) when you scan a photo or generate a menu. It is never
-            logged. Need a key? <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get
-            one free here</a> — no credit card.</p>
-          <label class="field-label" for="settings-key-input">Gemini API Key</label>
-          <div class="btn-row">
-            <input id="settings-key-input" type="password" placeholder="Paste a Gemini API key"
-                   autocomplete="off" autocapitalize="off" spellcheck="false">
-            <button id="settings-key-btn" class="btn btn-primary">Save &amp; Connect</button>
-          </div>
-          <p class="form-msg" id="settings-key-msg" role="status"></p>
-        </div>
-      </section>
-
-      <!-- ===== Page 3: Weekly Menu ===== -->
-      <section id="tab-menu" class="tab-page">
-        <h2>📅 7-Day Menu &amp; Step-by-Step Recipes</h2>
-        <div class="menu-toolbar">
-          <button id="generate-btn" class="btn btn-primary btn-big">🚀 Generate 7-Day Menu &amp; Recipes from Inventory</button>
-          <p class="hint" id="plan-meta"></p>
-        </div>
-        <p class="form-msg" id="menu-msg" role="status"></p>
-        <div id="nutrition-notes" class="info-box" hidden></div>
-        <div id="menu-days" class="menu-grid"></div>
-        <p class="empty-note" id="menu-empty">No menu generated yet. Stock your shelves, then click Generate.</p>
-      </section>
-
-      <!-- ===== Page 4: Shopping & Receipts ===== -->
-      <section id="tab-shop" class="tab-page">
-        <h2>🛒 Shopping &amp; Receipts</h2>
-        <div class="two-col">
-          <div class="card">
-            <h3>Smart Shopping Checklist</h3>
-            <div id="shopping-list"></div>
-            <p class="empty-note" id="shopping-empty">Generate a weekly menu first to populate your shopping list.</p>
-            <button id="restock-btn" class="btn btn-primary" disabled>📥 Add Checked Items to Inventory</button>
-            <p class="form-msg" id="shop-msg" role="status"></p>
-            <hr class="sep">
-            <label class="check-line">
-              <input type="checkbox" id="export-include"> Include already-restocked items in export
-            </label>
-            <div class="btn-row">
-              <button id="export-btn" class="btn">⬇️ Download Shopping List (.md)</button>
-              <button id="print-btn" class="btn">🖨️ Print Shopping List</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <h3>🧾 Scan Receipt / Import Online Order</h3>
-            <p class="hint">Drop photos or screenshots of your paper receipt — or import an online order — to auto-restock your kitchen and check off your list.</p>
-            <div class="dropzone" id="receipt-drop" tabindex="0" role="button"
-                 aria-label="Drop receipt photos or screenshots here or click to choose files">
-              <div class="dropzone-icon">🧾</div>
-              <p><b>Drag &amp; drop</b> receipt photos / screenshots here<br>or click to choose files</p>
-              <input id="receipt-file" type="file" accept="image/*" multiple hidden>
-            </div>
-            <p class="file-name" id="receipt-file-name">No photos chosen yet</p>
-            <img id="receipt-preview" class="photo-preview" alt="Receipt photo preview" hidden>
-            <button id="receipt-btn" class="btn btn-accent" disabled>🧾 Scan Receipt &amp; Auto-Restock</button>
-            <hr class="sep">
-            <p class="hint">Ordered online? Import the order PDF instead:</p>
-            <label class="btn">
-              📄 Choose Order PDF
-              <input id="receipt-pdf-file" type="file" accept="application/pdf" hidden>
-            </label>
-            <p class="file-name" id="receipt-pdf-name">No PDF chosen yet</p>
-            <button id="receipt-pdf-btn" class="btn btn-accent" disabled>📄 Import PDF &amp; Auto-Restock</button>
-            <hr class="sep">
-            <p class="hint">…or paste the order confirmation text / email:</p>
-            <textarea id="receipt-paste-text" rows="5" placeholder="Paste your online order confirmation text here…"></textarea>
-            <button id="receipt-paste-btn" class="btn btn-accent">📋 Import Pasted Order</button>
-            <p class="form-msg" id="receipt-msg" role="status"></p>
-            <div id="receipt-logs"></div>
-          </div>
-        </div>
-      </section>
-    </main>
   </div>
 </div>
 
-<!-- ===== Print-only shopping view (populated by app.js) ===== -->
-<div id="print-area" aria-hidden="true"></div>
+<!-- ===== Server Unreachable Modal ===== -->
+<div id="server-unreachable-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">🔌</div>
+    <h2 id="server-unreachable-title">Home Server Unreachable</h2>
+    <p id="server-unreachable-text">Your Home Server can't be reached at the stored address. Check that your computer is awake and connected to the same Wi-Fi, or update the server address.</p>
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+      <button id="server-unreachable-edit-btn" class="btn btn-primary btn-big" type="button">✏️ Edit Server Address</button>
+      <button id="server-unreachable-retry-btn" class="btn btn-accent" type="button">🔄 Retry Connection</button>
+      <button id="server-unreachable-close-btn" class="btn btn-ghost" type="button">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Name-First Onboarding Modal ===== -->
+<div id="name-onboarding-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">👋</div>
+    <h2>Welcome!</h2>
+    <p>What is your name?</p>
+    <label class="field-label" for="onboarding-name-input">Your Name</label>
+    <input id="onboarding-name-input" type="text" placeholder="e.g. Mike" autocomplete="name" maxlength="50">
+    <button id="onboarding-name-continue-btn" class="btn btn-primary btn-big" type="button">Continue</button>
+    <button id="onboarding-name-skip-btn" class="btn btn-ghost" type="button">Skip for now</button>
+    <p id="onboarding-name-msg" class="form-msg" role="status"></p>
+  </div>
+</div>
+
+<!-- ===== Wrong-Kitchen Guard Modal ===== -->
+<div id="switch-kitchen-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">⚠️</div>
+    <h2>Switch kitchens?</h2>
+    <p id="switch-kitchen-text">This opens a different kitchen than the one you used before. Switch kitchens?</p>
+    <div class="btn-row" style="display: flex; gap: 8px; margin-top: 16px;">
+      <button id="switch-kitchen-cancel-btn" class="btn btn-ghost" type="button" style="flex: 1;">Stay in my kitchen</button>
+      <button id="switch-kitchen-confirm-btn" class="btn btn-primary" type="button" style="flex: 1;">Switch</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Add Item Modal ===== -->
+<div id="add-item-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">➕</div>
+    <h2>Add Item to Kitchen</h2>
+    <label class="field-label" for="add-item-name">Item Name</label>
+    <input id="add-item-name" type="text" placeholder="e.g. Milk, Eggs, Black beans" autocomplete="off">
+    <div class="row-2col">
+      <div>
+        <label class="field-label" for="add-item-qty">Quantity</label>
+        <input id="add-item-qty" type="number" min="0.1" step="0.5" value="1">
+      </div>
+      <div>
+        <label class="field-label" for="add-item-unit">Unit</label>
+        <input id="add-item-unit" type="text" placeholder="count, oz, lbs, bottle" value="count">
+      </div>
+    </div>
+    <label class="field-label" for="add-item-loc">Storage Location</label>
+    <select id="add-item-loc">
+      <option value="Fridge">Fridge</option>
+      <option value="Freezer">Freezer</option>
+      <option value="Cupboard / Pantry" selected>Cupboard / Pantry</option>
+    </select>
+    <label class="field-label" for="add-item-cat">Category</label>
+    <select id="add-item-cat">
+      <option value="Produce/Veggies">Produce/Veggies</option>
+      <option value="Protein">Protein</option>
+      <option value="Dairy">Dairy</option>
+      <option value="Seasoning/Spice">Seasoning/Spice</option>
+      <option value="Drink/Beverage">Drink/Beverage</option>
+      <option value="Pantry/Dry" selected>Pantry/Dry</option>
+      <option value="Frozen">Frozen</option>
+    </select>
+    <button id="add-item-confirm-btn" class="btn btn-primary btn-big">Add to Inventory</button>
+    <button id="add-item-cancel-btn" class="btn btn-ghost">Cancel</button>
+  </div>
+</div>
+
+<!-- ===== Photo Source Chooser Modal (for Capacitor / native app) ===== -->
+<div id="photo-picker-modal" class="setup-overlay" hidden>
+  <div class="setup-card photo-picker-card">
+    <div class="setup-emoji">📷</div>
+    <h2 id="photo-picker-title">Add Photo</h2>
+    <p id="photo-picker-desc" class="hint">Choose how you want to add your photo:</p>
+    <button id="picker-camera-btn" class="btn btn-primary btn-big" type="button">📸 Take Photo</button>
+    <button id="picker-gallery-btn" class="btn btn-accent btn-big" type="button">🖼️ Choose from Gallery</button>
+    <button id="picker-cancel-btn" class="btn btn-ghost" type="button">Cancel</button>
+  </div>
+</div>
+
+<!-- ===== Clear Menu Confirmation Modal ===== -->
+<div id="clear-menu-modal" class="setup-overlay" hidden>
+  <div class="setup-card">
+    <div class="setup-emoji">🗑️</div>
+    <h2 id="clear-menu-title">Start over with a fresh menu?</h2>
+    <p id="clear-menu-body" class="hint" style="margin: 12px 0 20px; line-height: 1.5;">This clears your current 7-day menu and the shopping list built from it. Your stocked inventory, receipts, and settings stay exactly as they are.</p>
+    <div class="btn-row" style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button id="clear-menu-cancel-btn" class="btn btn-ghost" type="button">Keep my menu</button>
+      <button id="clear-menu-confirm-btn" class="btn btn-danger" type="button">Clear it</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Shop This List Modal ===== -->
+<div id="shop-modal" class="setup-overlay" hidden>
+  <div class="setup-card" style="max-height: 85vh; overflow-y: auto;">
+    <div class="setup-emoji">🛒</div>
+    <h2>Shop This List</h2>
+    <p class="hint" style="margin: 10px 0 16px; line-height: 1.5;">Pantry Planner prepares your shopping search links and hands them over to your chosen grocery service. All ordering, fulfillment, and payment happen directly on the store's website or app.</p>
+    
+    <label class="field-label" for="shop-store-picker">Choose Grocery Store</label>
+    <select id="shop-store-picker">
+      <option value="">-- Choose your store --</option>
+      <option value="instacart">Instacart</option>
+      <option value="walmart">Walmart</option>
+    </select>
+    <label class="check-line" style="font-size: 0.85rem; margin-top: 6px; margin-bottom: 12px;">
+      <input type="checkbox" id="shop-save-default-check"> Save as my default store
+    </label>
+
+    <label class="field-label" for="shop-override-zip">Shop near a different ZIP this time (optional)</label>
+    <input id="shop-override-zip" type="text" placeholder="e.g. 78701" maxlength="10">
+    <p class="hint" style="margin-top: 4px; font-size: 0.8rem;">Overrides location for this shopping session without changing your saved home ZIP.</p>
+
+    <div class="btn-row" style="margin: 16px 0 12px; display: flex; gap: 8px;">
+      <button id="shop-open-all-btn" class="btn btn-primary btn-big" type="button" style="flex: 1;">🚀 Open All Items at Store</button>
+      <button id="shop-modal-cancel-btn" class="btn btn-ghost" type="button">Close</button>
+    </div>
+    <p class="form-msg" id="shop-modal-msg" role="status"></p>
+
+    <div id="shop-modal-items-container" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
+      <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">Or open item by item:</h4>
+      <div id="shop-modal-items-list" class="shop-modal-list"></div>
+    </div>
+  </div>
+</div>
+
+
+<header class="app-header">
+  <div class="header-top">
+    <h1>🥘 Pantry Planner</h1>
+    <div class="header-actions">
+      <button id="header-server-btn" class="header-server-btn" type="button" title="Server Connection &amp; Address" aria-label="Server Connection">
+        <span id="header-server-dot" class="status-dot"></span>
+        <span id="header-server-label">Server</span>
+      </button>
+      <button id="header-refresh-btn" class="header-refresh-btn" type="button" title="Refresh all data" aria-label="Refresh">🔄</button>
+    </div>
+  </div>
+  <div id="kitchen-name-banner" class="kitchen-name-badge" hidden></div>
+  <div class="banner">🎃 Spooky Harvest Kitchen Mode</div>
+  <div class="status-bar">
+    <div class="stat"><span class="stat-num" id="stat-stock">0</span><span class="stat-label">📦 Stocked</span></div>
+    <div class="stat"><span class="stat-num" id="stat-headcount">–</span><span class="stat-label">👨‍👩‍👧 People</span></div>
+    <div class="stat"><span class="stat-num" id="stat-cooked">0/7</span><span class="stat-label">🍳 Cooked</span></div>
+    <div class="stat"><span class="stat-num" id="stat-tobuy">0</span><span class="stat-label">🛒 To Buy</span></div>
+  </div>
+</header>
+
+<div id="connection-banner" class="connection-banner" hidden>
+  <div class="banner-body">
+    <span class="banner-icon" id="banner-icon">⚠️</span>
+    <span class="banner-text" id="banner-text">Disconnected from Home Server. Showing cached data.</span>
+  </div>
+  <div class="banner-actions">
+    <button id="banner-retry-btn" class="banner-btn" type="button">Retry</button>
+    <button id="banner-settings-btn" class="banner-btn" type="button">Settings</button>
+  </div>
+</div>
+
+<div id="ptr-indicator" class="ptr-indicator">
+  <span class="ptr-icon">↓</span>
+  <span class="ptr-text">Pull to refresh…</span>
+</div>
+
+<main>
+  <!-- ===== Tab 1: Scan & Stock ===== -->
+  <section id="tab-scan" class="tab-page active">
+    <h2>📸 Snap or Upload Shelves</h2>
+    <div class="card">
+      <div class="segmented" id="scan-location">
+        <button data-loc="Fridge" class="active">Fridge</button>
+        <button data-loc="Freezer">Freezer</button>
+        <button data-loc="Cupboard / Pantry">Pantry</button>
+      </div>
+      <p class="transparency-note" style="font-size: 0.85rem; color: var(--muted); margin: 8px 0 12px; line-height: 1.4;">
+        🔒 Your photo is read, then deleted — we keep the item list, not the picture.
+      </p>
+      <label class="btn btn-primary file-btn">
+        📷 Take or choose photo
+        <input id="scan-file" type="file" accept="image/*" hidden>
+      </label>
+      <p class="file-name" id="scan-file-name">No photo chosen yet</p>
+      <div id="scan-preview-wrapper" style="position: relative; margin: 8px 0;" hidden>
+        <img id="scan-preview" class="photo-preview" alt="Shelf photo preview" hidden>
+        <button id="scan-discard-btn" class="btn btn-ghost" type="button" style="margin-top: 6px; width: 100%;">✕ Discard / Cancel</button>
+      </div>
+      <button id="scan-btn" class="btn btn-accent" disabled>🔍 Scan Photo &amp; Log Items</button>
+      <p class="form-msg" id="scan-msg" role="status"></p>
+    </div>
+
+    <div class="inv-header-row">
+      <h2>📦 Kitchen Inventory</h2>
+      <div class="segmented inv-mode-toggle" id="inv-view-toggle">
+        <button id="mode-onhand-btn" class="active" type="button">📋 On Hand</button>
+        <button id="mode-edit-btn" type="button">✏️ Edit</button>
+      </div>
+    </div>
+
+    <!-- Mode 1: Dedicated Read-First "On Hand" View -->
+    <div id="on-hand-container">
+      <div id="on-hand-groups"></div>
+      <p class="empty-note" id="on-hand-empty">No items logged yet — take a shelf photo or tap Edit to add items.</p>
+    </div>
+
+    <!-- Mode 2: Editor View -->
+    <div class="card" id="inventory-editor-card" hidden>
+      <p class="hint" style="margin-top: 0; margin-bottom: 8px;">Edit item names, quantities, locations, or remove items:</p>
+      <div id="inventory-list"></div>
+      <p class="empty-note" id="inventory-empty">Nothing stocked yet — scan a shelf photo or add items by hand.</p>
+      <div class="btn-row">
+        <button id="inv-add-btn" class="btn">➕ Add Item</button>
+        <button id="inv-save-btn" class="btn btn-primary">💾 Save Inventory</button>
+      </div>
+      <button id="inv-clear-btn" class="btn btn-danger">🗑️ Clear All Inventory</button>
+      <p class="form-msg" id="inv-msg" role="status"></p>
+    </div>
+  </section>
+
+  <!-- ===== Tab 2: Household & Diet ===== -->
+  <section id="tab-diet" class="tab-page">
+    <h2>👨‍👩‍👧 Household Size &amp; Scaling</h2>
+    <div class="card">
+      <label class="field-label" for="base-headcount">Standard Household Headcount</label>
+      <input id="base-headcount" type="number" min="1" max="50" value="2">
+      <p class="hint">Scale individual days for guests or holidays (e.g., 20 for Thanksgiving).</p>
+      <div class="day-grid" id="day-headcounts"></div>
+    </div>
+
+    <h2>🥗 Dietary Restrictions &amp; Allergies</h2>
+    <div class="card">
+      <div id="diet-tags" class="tag-list"></div>
+      <label class="field-label" for="custom-notes">Specific Medical Needs, Allergies, or Favorite Cuisines</label>
+      <textarea id="custom-notes" rows="3" placeholder="e.g., Type 2 diabetes for one member, severe peanut allergy for another, prefer Tex-Mex or German cuisine."></textarea>
+      <label class="field-label" for="staples">Essential Staples to Always Check (Seasonings, Drinks, Veggies)</label>
+      <textarea id="staples" rows="2"></textarea>
+      <button id="diet-save-btn" class="btn btn-primary">💾 Save Household &amp; Diet Settings</button>
+      <p class="form-msg" id="diet-msg" role="status"></p>
+    </div>
+
+    <h2>🕊️ Faith &amp; tradition (optional)</h2>
+    <div class="card" id="religious-diet-card">
+      <div id="religious-presets-list" class="tag-list"></div>
+      <p class="hint" style="margin-top: 12px; margin-bottom: 12px; font-size: 0.85rem; color: var(--text-dim, #666); line-height: 1.4;">
+        These presets follow ingredient rules. This app can't verify halal or kosher certification — please check product labels for certification.
+      </p>
+      <button id="religious-save-btn" class="btn btn-primary" type="button">💾 Save Faith &amp; Tradition Presets</button>
+      <p class="form-msg" id="religious-msg" role="status"></p>
+    </div>
+
+    <h2>🏠 Home Desktop Server</h2>
+    <div class="card" id="server-settings-card">
+      <p class="hint">Connect to your home computer over Wi-Fi so your phone and desktop share the exact same inventory and meal plans.</p>
+      <div class="server-status-indicator" id="server-status-pill">
+        <span class="status-dot disconnected" id="server-status-dot"></span>
+        <span id="server-status-text">Not connected</span>
+      </div>
+      <label class="field-label" for="server-url-input">Desktop Server Address</label>
+      <input id="server-url-input" type="text" placeholder="http://192.168.4.159:8000 (blank for local)"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <label class="field-label" for="server-token-input">Access Code (optional)</label>
+      <input id="server-token-input" type="password" placeholder="Leave blank if access code is disabled"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div id="kitchen-name-settings-row" style="margin: 12px 0;">
+        <label class="field-label" for="settings-kitchen-name-input">Kitchen Name</label>
+        <div style="display: flex; gap: 8px;">
+          <input id="settings-kitchen-name-input" type="text" placeholder="Unnamed Kitchen" style="flex: 1;" readonly>
+          <button id="settings-kitchen-name-btn" class="btn btn-primary" type="button" hidden>Save Name</button>
+        </div>
+        <p class="hint" id="settings-kitchen-name-hint" style="margin-top: 4px; font-size: 0.85rem;"></p>
+      </div>
+      <div class="btn-row">
+        <button id="server-save-btn" class="btn btn-primary">Connect &amp; Save</button>
+        <button id="server-test-btn" class="btn">Test Connection</button>
+      </div>
+      <p class="form-msg" id="server-msg" role="status"></p>
+      <div id="outbox-status-card" class="outbox-info" hidden>
+        <p>📦 <b>Offline Outbox:</b> <span id="outbox-count">0</span> item(s) waiting to sync.</p>
+        <button id="outbox-sync-btn" class="btn btn-accent">Sync Outbox Now</button>
+      </div>
+    </div>
+
+    <div id="ai-services-status-section">
+      <h2>🤖 AI Services Status</h2>
+      <div class="card" id="ai-status-panel-card">
+        <p class="hint" style="margin-top: 0; margin-bottom: 12px;">Real-time health and active models for all configured AI providers.</p>
+        <div id="ai-provider-rows" style="display: flex; flex-direction: column; gap: 10px;">
+          <div id="status-row-gemini" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Gemini — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+          <div id="status-row-groq" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Groq (scans) — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+          <div id="status-row-groq_generate" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">Groq (plans) — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+          <div id="status-row-openrouter" class="provider-status-row" style="padding: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;" class="provider-summary-text">OpenRouter — Loading…</div>
+            <div class="provider-auto-update-notice hint" style="color: var(--accent-soft); font-size: 0.85rem;" hidden></div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top: 14px; display: flex; align-items: center; gap: 10px;">
+          <button id="providers-probe-btn" class="btn btn-secondary" type="button">🔄 Check now</button>
+          <span id="providers-probe-msg" class="form-msg" role="status" style="margin: 0;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="connected-keys-notice" class="card" hidden>
+      <p class="hint" style="margin: 0; font-size: 0.95rem;">✨ <b>AI features are powered by your connected Pantry Planner server.</b></p>
+    </div>
+
+    <div id="server-models-section" class="card" style="margin-top: 16px;">
+      <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 1.05rem;">⚙️ Provider Models (Server Config)</h3>
+      <p class="hint">Configure active model IDs for each provider. Saving runs a validation probe to confirm the model is available.</p>
+
+      <label class="field-label" for="gemini-model-input">Gemini Model ID</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="gemini-model-input" type="text" placeholder="gemini-3.8-flash" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="gemini-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="gemini-model-msg" role="status"></p>
+
+      <hr class="sep">
+
+      <label class="field-label" for="groq-model-input">Groq Model ID (Scans)</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="groq-model-input" type="text" placeholder="qwen/qwen3.8-27b" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="groq-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="groq-model-msg" role="status"></p>
+
+      <hr class="sep">
+
+      <label class="field-label" for="groq_generate-model-input">Groq Model ID (Plans)</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="groq_generate-model-input" type="text" placeholder="openai/gpt-oss-120b" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="groq_generate-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="groq_generate-model-msg" role="status"></p>
+
+      <hr class="sep">
+
+      <label class="field-label" for="openrouter-model-input">OpenRouter Model ID</label>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <input id="openrouter-model-input" type="text" placeholder="nvidia/nemotron-3.5-super-vl:free" autocomplete="off" spellcheck="false" style="flex: 1;">
+        <button id="openrouter-model-save-btn" class="btn btn-primary" type="button">Save</button>
+      </div>
+      <p class="form-msg" id="openrouter-model-msg" role="status"></p>
+    </div>
+
+    <div id="standalone-keys-section">
+      <h2>🔑 Gemini API Key</h2>
+      <div class="card">
+        <p class="hint">When connected to your Home Server, all AI requests use the server's configured keys automatically.
+          This field applies when running in standalone offline mode. Your key is stored <b>only on this device</b> and is never logged.
+          Need a key? <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get one free here</a> — no credit card.</p>
+        <label class="field-label" for="settings-key-input">Gemini API Key (Standalone Mode)</label>
+        <input id="settings-key-input" type="password" placeholder="Paste a Gemini API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="settings-key-btn" class="btn btn-primary">Save &amp; Connect</button>
+        <p class="form-msg" id="settings-key-msg" role="status"></p>
+      </div>
+
+      <h2>⚡ Fallback AI Providers (Optional)</h2>
+      <div class="card">
+        <p class="hint">In standalone mode, if Gemini experiences congestion, the app fails over to your configured backup providers. In connected mode, the server's own fallback chain is used automatically.</p>
+        
+        <label class="field-label" for="groq-key-input">Groq API Key (optional)</label>
+        <input id="groq-key-input" type="password" placeholder="gsk_... (qwen/qwen3.8-27b)"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="groq-key-btn" class="btn">Save Groq Key</button>
+        <p class="form-msg" id="groq-key-msg" role="status"></p>
+
+        <hr class="sep">
+
+        <label class="field-label" for="openrouter-key-input">OpenRouter API Key (optional)</label>
+        <input id="openrouter-key-input" type="password" placeholder="sk-or-v1-... (openrouter/free)"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="openrouter-key-btn" class="btn">Save OpenRouter Key</button>
+        <p class="form-msg" id="openrouter-key-msg" role="status"></p>
+
+        <hr class="sep">
+
+        <label class="field-label">Failover Order (read-only)</label>
+        <div class="failover-chain-box">
+          <span class="chain-step active">1. Google Gemini</span> &rarr;
+          <span class="chain-step">2. Groq</span> &rarr;
+          <span class="chain-step">3. OpenRouter</span>
+        </div>
+        <p class="hint" style="margin-top: 6px;">Automatic retry triggers on HTTP 503, 429, or timeouts.</p>
+      </div>
+    </div>
+
+    <h2>🛒 Grocery Store Handoff</h2>
+    <div class="card" id="grocery-settings-card">
+      <p class="hint">Choose your preferred grocery service for 1-click shopping list handoff.</p>
+      <label class="field-label" for="grocery-store-select">My Grocery Store</label>
+      <select id="grocery-store-select">
+        <option value="">-- Choose your store --</option>
+        <option value="instacart">Instacart</option>
+        <option value="walmart">Walmart</option>
+      </select>
+      <label class="field-label" for="grocery-zip-input">Home Store ZIP Code (optional)</label>
+      <input id="grocery-zip-input" type="text" placeholder="e.g. 78701" maxlength="10">
+      <div class="btn-row" style="margin-top: 10px; display: flex; gap: 8px;">
+        <button id="grocery-save-btn" class="btn btn-primary" type="button">Save Grocery Preference</button>
+        <button id="grocery-clear-btn" class="btn btn-ghost" type="button">Clear</button>
+      </div>
+      <p class="form-msg" id="grocery-msg" role="status"></p>
+    </div>
+
+    <h2>ℹ️ About &amp; Credits</h2>
+    <div class="card" id="credits-card">
+      <p class="hint" style="line-height: 1.5; margin: 0;">
+        🍽️ <b>Meal Imagery Credits:</b> Built-in vector culinary illustrations designed specifically for Pantry Planner under Creative Commons CC0 / Open License. Sized for instant local rendering with zero external network requests.
+      </p>
+    </div>
+  </section>
+
+
+
+  <!-- ===== Tab 3: Weekly Menu ===== -->
+  <section id="tab-menu" class="tab-page">
+    <h2>📅 7-Day Menu &amp; Recipes</h2>
+    <div class="menu-actions-row" style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
+      <button id="generate-btn" class="btn btn-primary btn-big" style="flex: 1;">🚀 Generate 7-Day Menu &amp; Recipes</button>
+      <button id="clear-menu-btn" class="btn btn-danger" type="button" style="display: none;">🗑️ Clear menu</button>
+    </div>
+    <p class="form-msg" id="menu-msg" role="status"></p>
+    <p class="hint" id="plan-meta"></p>
+    <div id="nutrition-notes" class="info-box" hidden></div>
+    <div id="menu-days"></div>
+    <p class="empty-note" id="menu-empty">No menu generated yet. Stock your shelves, then tap Generate.</p>
+  </section>
+
+  <!-- ===== Tab 4: Shopping & Receipts ===== -->
+  <section id="tab-shop" class="tab-page">
+    <h2>🛒 Smart Shopping Checklist</h2>
+    <div class="card">
+      <div id="shopping-list"></div>
+      <p class="empty-note" id="shopping-empty">No menu planned yet — your shopping list will build from your plan.</p>
+      <div class="shop-actions-row" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+        <button id="shop-list-btn" class="btn btn-accent" type="button" style="display: none;" disabled>🛒 Shop this list</button>
+      </div>
+      <button id="restock-btn" class="btn btn-primary" disabled>📥 Add Checked Items to Inventory</button>
+      <button id="clear-purchased-btn" class="btn btn-danger" disabled>🧹 Clear purchased items</button>
+      <p class="form-msg" id="shop-msg" role="status"></p>
+      <hr class="sep">
+      <label class="check-line">
+        <input type="checkbox" id="export-include"> Include already-restocked items in export
+      </label>
+      <button id="export-btn" class="btn">⬇️ Download Shopping List (.md)</button>
+    </div>
+
+    <h2>🧾 Scan Receipt / Import Online Order</h2>
+    <div class="card">
+      <p class="hint">Snap your paper receipt — or import an online order — to auto-restock your kitchen and check off your list.</p>
+      <p class="transparency-note" style="font-size: 0.85rem; color: var(--muted); margin: 8px 0 12px; line-height: 1.4;">
+        🔒 Your receipt is read, then deleted — we keep the items, not the receipt.
+      </p>
+      <label class="btn btn-primary file-btn">
+        📷 Take or choose receipt photos / screenshots
+        <input id="receipt-file" type="file" accept="image/*" multiple hidden>
+      </label>
+      <p class="file-name" id="receipt-file-name">No photos chosen yet</p>
+      <div id="receipt-preview-wrapper" style="position: relative; margin: 8px 0;" hidden>
+        <img id="receipt-preview" class="photo-preview" alt="Receipt photo preview" hidden>
+        <button id="receipt-discard-btn" class="btn btn-ghost" type="button" style="margin-top: 6px; width: 100%;">✕ Discard / Cancel</button>
+      </div>
+      <button id="receipt-btn" class="btn btn-accent" disabled>🧾 Scan Receipt &amp; Auto-Restock</button>
+      <hr class="sep">
+      <p class="hint">Ordered online? Import the order PDF instead:</p>
+      <label class="btn file-btn">
+        📄 Choose Order PDF
+        <input id="receipt-pdf-file" type="file" accept="application/pdf" hidden>
+      </label>
+      <p class="file-name" id="receipt-pdf-name">No PDF chosen yet</p>
+      <button id="receipt-pdf-btn" class="btn btn-accent" disabled>📄 Import PDF &amp; Auto-Restock</button>
+      <hr class="sep">
+      <p class="hint">…or paste the order confirmation text / email:</p>
+      <textarea id="receipt-paste-text" rows="5" placeholder="Paste your online order confirmation text here…"></textarea>
+      <button id="receipt-paste-btn" class="btn btn-accent">📋 Import Pasted Order</button>
+      <p class="form-msg" id="receipt-msg" role="status"></p>
+      <div id="receipt-logs"></div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button data-tab="tab-scan" class="active"><span class="tab-emoji">📸</span><span>Scan</span></button>
+  <button data-tab="tab-diet"><span class="tab-emoji">👨‍👩‍👧</span><span>Diet</span></button>
+  <button data-tab="tab-menu"><span class="tab-emoji">📅</span><span>Menu</span></button>
+  <button data-tab="tab-shop"><span class="tab-emoji">🛒</span><span>Shop</span></button>
+</nav>
 
 <div id="toast" role="status"></div>
 
+<script src="camera.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

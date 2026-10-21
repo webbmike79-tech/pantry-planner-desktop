@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="wokBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#182a3a"/>
+      <stop offset="50%" stop-color="#2d4059"/>
+      <stop offset="100%" stop-color="#ea5455"/>
+    </linearGradient>
+    <linearGradient id="wokIron" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#495057"/>
+      <stop offset="100%" stop-color="#212529"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="200" fill="url(#wokBg)"/>
+  <!-- Wok shadow -->
+  <ellipse cx="200" cy="165" rx="130" ry="22" fill="#000000" opacity="0.35"/>
+  <!-- Wok Bowl -->
+  <ellipse cx="200" cy="142" rx="120" ry="36" fill="url(#wokIron)"/>
+  <ellipse cx="200" cy="138" rx="114" ry="32" fill="#343a40"/>
+  <!-- Rice / Noodles Base -->
+  <ellipse cx="200" cy="136" rx="95" ry="24" fill="#e9ecef" opacity="0.9"/>
+  <!-- Broccoli florets -->
+  <circle cx="150" cy="130" r="11" fill="#2b8a3e"/>
+  <circle cx="158" cy="125" r="9" fill="#37b24d"/>
+  <circle cx="235" cy="132" r="12" fill="#2b8a3e"/>
+  <circle cx="242" cy="126" r="9" fill="#37b24d"/>
+  <!-- Carrot strips -->
+  <rect x="175" y="125" width="22" height="5" rx="2" fill="#fd7e14" transform="rotate(-15, 175, 125)"/>
+  <rect x="210" y="132" width="20" height="5" rx="2" fill="#fd7e14" transform="rotate(25, 210, 132)"/>
+  <rect x="185" y="140" width="18" height="4.5" rx="2" fill="#fd7e14" transform="rotate(5, 185, 140)"/>
+  <!-- Sautéed chicken / beef chunks -->
+  <rect x="180" y="128" width="16" height="12" rx="3" fill="#8d5b4c"/>
+  <rect x="205" y="122" width="18" height="11" rx="3" fill="#6d4337"/>
+  <rect x="165" y="136" width="15" height="10" rx="3" fill="#7a4b3d"/>
+  <!-- Sesame seeds -->
+  <circle cx="195" cy="128" r="1.5" fill="#fff9db"/>
+  <circle cx="215" cy="136" r="1.5" fill="#fff9db"/>
+  <circle cx="178" cy="132" r="1.5" fill="#fff9db"/>
+  <!-- Steam curls -->
+  <path d="M190,110 Q185,95 195,85 T190,65" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
+  <path d="M215,112 Q225,97 215,87 T220,68" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
+  <text x="20" y="38" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="bold" opacity="0.9" letter-spacing="1">🥢 ASIAN &amp; STIR-FRY</text>
+</svg>

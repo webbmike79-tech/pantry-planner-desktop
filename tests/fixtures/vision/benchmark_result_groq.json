@@ -1,0 +1,616 @@
+{
+  "status": "completed",
+  "provider": "groq",
+  "run_label": "Run 2 (Official pantry test pics)",
+  "results": {
+    "spice_rack": {
+      "photo_key": "spice_rack",
+      "total_detected": 19,
+      "total_ground_truth": 13,
+      "matched_count": 8,
+      "missed_count": 5,
+      "invented_count": 6,
+      "invented_items": [
+        "Fire & Smoke Society Seasoning",
+        "Adams Seasoning",
+        "McCormick Grill Mates Herb Seasoning",
+        "Tomato Seasoning",
+        "Duke's Hot Sauce",
+        "Unidentified seasoning packets"
+      ],
+      "confabulated_count": 4,
+      "confabulated_items": [
+        "Fire & Smoke Society Seasoning",
+        "Adams Seasoning",
+        "McCormick Grill Mates Herb Seasoning",
+        "Duke's Hot Sauce"
+      ],
+      "honest_unknown_count": 1,
+      "honest_unknown_items": [
+        "Unidentified seasoning packets"
+      ],
+      "unmatched_specific_count": 1,
+      "unmatched_specific_items": [
+        "Tomato Seasoning"
+      ],
+      "missed_items": [
+        "Taco Seasoning packets",
+        "Pinto Bean Seasoning",
+        "Bay Leaves",
+        "Whole Black Pepper",
+        "Black Peppercorns"
+      ],
+      "matches": [
+        [
+          "Slap a Mama Cajun Seasoning",
+          "Slap Ya Mama Cajun Seasoning"
+        ],
+        [
+          "Thundering Longhorn Seasoning",
+          "Thundering Longhorn Rub"
+        ],
+        [
+          "Lola's Garlic Sea Salt",
+          "Garlic Sea Salt"
+        ],
+        [
+          "Great Value Garlic Salt",
+          "Garlic Sea Salt"
+        ],
+        [
+          "Ground Ginger",
+          "Ground Ginger"
+        ],
+        [
+          "Sweet Onion Bacon Seasoning",
+          "McCormick Sweet Onion Bacon Seasoning"
+        ],
+        [
+          "Ginger Salt Seasoning",
+          "Garlic Sea Salt"
+        ],
+        [
+          "McCormick Black Pepper",
+          "Cayenne Pepper"
+        ],
+        [
+          "Cayenne Pepper",
+          "Cayenne Pepper"
+        ],
+        [
+          "Whole Black Pepper",
+          "Cayenne Pepper"
+        ],
+        [
+          "Ground Cumin",
+          "Ground Ginger"
+        ],
+        [
+          "Red Chili Flakes",
+          "Crushed Red Pepper"
+        ],
+        [
+          "Tajin Cl\u00e1sico Seasoning",
+          "Taj\u00edn"
+        ]
+      ]
+    },
+    "pantry": {
+      "photo_key": "pantry",
+      "total_detected": 42,
+      "total_ground_truth": 28,
+      "matched_count": 17,
+      "missed_count": 11,
+      "invented_count": 0,
+      "invented_items": [],
+      "confabulated_count": 0,
+      "confabulated_items": [],
+      "honest_unknown_count": 0,
+      "honest_unknown_items": [],
+      "unmatched_specific_count": 0,
+      "unmatched_specific_items": [],
+      "missed_items": [
+        "Tteokbokki cups",
+        "Campbell's Soup",
+        "Taco Shells",
+        "Ramen packets",
+        "Peanut Butter",
+        "Smucker's Jam",
+        "La Coste\u00f1a Chipotles",
+        "Heinz Gravy",
+        "Doritos",
+        "Tostitos",
+        "Assorted Cookies"
+      ],
+      "matches": [
+        [
+          "Clabber Girl Baking Powder",
+          "Clabber Girl Baking Powder"
+        ],
+        [
+          "Mission Pride Canned Peaches",
+          "Mission Pride Sliced Peaches"
+        ],
+        [
+          "Richland Orchard Canned Pears",
+          "Richfield Orchard Diced Pears"
+        ],
+        [
+          "Germant Pickled Beets",
+          "Del Monte Pickled Beets"
+        ],
+        [
+          "NEMCO Canned Carrots",
+          "Diced Carrots"
+        ],
+        [
+          "Deshler Brand Canned Green Beans",
+          "Cut Green Beans"
+        ],
+        [
+          "Great Value Canned Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Hudnut Canned Sweet Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Richland Orchard Canned Applesauce",
+          "Richfield Orchard Diced Pears"
+        ],
+        [
+          "Swanson Pineapple Chunks",
+          "Pineapple Chunks"
+        ],
+        [
+          "Little Kobik Canned Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Glory Seasoned Butter Beans",
+          "Cut Green Beans"
+        ],
+        [
+          "Popeye Canned Spinach",
+          "Popeye Spinach"
+        ],
+        [
+          "Victor's Canned Green Beans",
+          "Cut Green Beans"
+        ],
+        [
+          "Campbell's Canned Soup",
+          "Libby's Sliced Peaches"
+        ],
+        [
+          "Fritos Canned Corn",
+          "Whole Kernel Corn"
+        ],
+        [
+          "Lipton Iced Tea",
+          "Lipton Iced Tea"
+        ],
+        [
+          "Stove Top Stuffing Mix",
+          "Stove Top Stuffing"
+        ],
+        [
+          "La Flora Taco Shells",
+          "La Victoria Green Chiles"
+        ],
+        [
+          "Premier Cheese",
+          "Macaroni & Cheese"
+        ],
+        [
+          "Boil-in-Bag White Rice",
+          "White Rice"
+        ],
+        [
+          "Stove Top White Stuffing",
+          "Stove Top Stuffing"
+        ],
+        [
+          "Aronson Peanut Butter",
+          "Glory Butter Beans"
+        ],
+        [
+          "Smucker's Red Plum Jam",
+          "Libby's Sliced Peaches"
+        ],
+        [
+          "La Costena Salsa",
+          "La Victoria Green Chiles"
+        ],
+        [
+          "Heinz Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Heinz Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ],
+        [
+          "Windsor Canned Sauce",
+          "Apple Sauce"
+        ]
+      ]
+    },
+    "fridge": {
+      "photo_key": "fridge",
+      "total_detected": 10,
+      "total_ground_truth": 11,
+      "matched_count": 6,
+      "missed_count": 5,
+      "invented_count": 4,
+      "invented_items": [
+        "Pretzel Crisps",
+        "Unidentified white container",
+        "Unidentified food in plastic container",
+        "Unidentified bagged item"
+      ],
+      "confabulated_count": 1,
+      "confabulated_items": [
+        "Pretzel Crisps"
+      ],
+      "honest_unknown_count": 3,
+      "honest_unknown_items": [
+        "Unidentified white container",
+        "Unidentified food in plastic container",
+        "Unidentified bagged item"
+      ],
+      "unmatched_specific_count": 0,
+      "unmatched_specific_items": [],
+      "missed_items": [
+        "Premier Protein Shakes",
+        "Pickled Vegetables",
+        "Potato Salad (container)",
+        "Butter Spread (tub)",
+        "Tomato"
+      ],
+      "matches": [
+        [
+          "Heinz Tomato Ketchup",
+          "Heinz Tomato Ketchup"
+        ],
+        [
+          "Taco Casa Hot Sauce",
+          "Taco Casa Hot Sauce"
+        ],
+        [
+          "Eggs",
+          "Eggs"
+        ],
+        [
+          "Ground Beef",
+          "Ground Beef"
+        ],
+        [
+          "Unidentified liquid in pitcher",
+          "Iced Tea (pitcher)"
+        ],
+        [
+          "Chocolate Chip Cookies",
+          "Chocolate Chip Cookies (package)"
+        ]
+      ]
+    },
+    "fridge_door": {
+      "photo_key": "fridge_door",
+      "total_detected": 45,
+      "total_ground_truth": 11,
+      "matched_count": 3,
+      "missed_count": 8,
+      "invented_count": 0,
+      "invented_items": [],
+      "confabulated_count": 0,
+      "confabulated_items": [],
+      "honest_unknown_count": 0,
+      "honest_unknown_items": [],
+      "unmatched_specific_count": 0,
+      "unmatched_specific_items": [],
+      "missed_items": [
+        "Kraft Dressing",
+        "Steak Sauce",
+        "Masterpiece Hickory Brown Sugar BBQ Sauce",
+        "Cholula Hot Sauce",
+        "La Coste\u00f1a Jalape\u00f1os",
+        "Mustard",
+        "Soy Sauce",
+        "Soda (2L bottle)"
+      ],
+      "matches": [
+        [
+          "Mrs. Renfro's Ghost Pepper Salsa",
+          "Mrs. Renfro's Ghost Pepper Salsa"
+        ],
+        [
+          "Louisiana Tartar Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Miracle Whip",
+          "Miracle Whip"
+        ],
+        [
+          "Kraft Remoulade Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Hot Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ],
+        [
+          "Unidentified Sauce",
+          "Louisiana Tartar Sauce"
+        ]
+      ]
+    },
+    "freezer": {
+      "photo_key": "freezer",
+      "total_detected": 10,
+      "total_ground_truth": 8,
+      "matched_count": 2,
+      "missed_count": 6,
+      "invented_count": 8,
+      "invented_items": [
+        "Eggo Waffles",
+        "Frozen Spinach",
+        "Frozen Bread",
+        "Frozen Meat",
+        "Unidentified Freezer Item 1",
+        "Unidentified Freezer Item 2",
+        "Unidentified Freezer Item 3",
+        "Unidentified Freezer Item 4"
+      ],
+      "confabulated_count": 1,
+      "confabulated_items": [
+        "Eggo Waffles"
+      ],
+      "honest_unknown_count": 4,
+      "honest_unknown_items": [
+        "Unidentified Freezer Item 1",
+        "Unidentified Freezer Item 2",
+        "Unidentified Freezer Item 3",
+        "Unidentified Freezer Item 4"
+      ],
+      "unmatched_specific_count": 3,
+      "unmatched_specific_items": [
+        "Frozen Spinach",
+        "Frozen Bread",
+        "Frozen Meat"
+      ],
+      "missed_items": [
+        "Corn on the Cob",
+        "Broccoli Florets",
+        "Neapolitan Ice Cream Sandwiches",
+        "Sausage",
+        "Ice Cream / Frozen Dessert box",
+        "Frozen Vegetables (bags)"
+      ],
+      "matches": [
+        [
+          "Frozen Mixed Vegetables",
+          "Mixed Vegetables"
+        ],
+        [
+          "Tale Pei Frozen Food",
+          "Tai Pei Frozen Meal"
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,433 @@
+"""
+Phone access for the desktop server (Milestone 1 of the connected system).
+
+The desktop app is the single hub for the shared database. A phone reaches it
+over the home Wi-Fi ONLY when the user has turned on "phone access". This
+module provides:
+
+  * a tiny machine-local config file (NOT the shared database) that remembers
+    - phone_access: None = never asked yet, True = on, False = off
+    - access_code:  optional shared code the phone must send (X-Pantry-Token)
+  * PhoneAccessMiddleware - gates every non-loopback request:
+        phone access off  -> 403 for everything
+        phone access on   -> allowed; if an access code is set, /api/* needs it
+    Requests from this PC itself (loopback) are always allowed and never need
+    the code, so the desktop window keeps working exactly as before.
+  * a loopback-only router under /api/desktop/ to read/change the setting and
+    to render the QR code for the phone address.
+
+Safe by default: a missing or corrupt config means phone access is OFF.
+The access code is a light household guard, not real security - traffic on the
+home network is plain HTTP.
+"""
+
+import io
+import json
+import logging
+import os
+import re
+import secrets
+import socket
+import sys
+import tempfile
+from pathlib import Path
+from typing import List, Optional, Set
+
+if __name__ in ("phone_access", "api.phone_access"):
+    sys.modules["phone_access"] = sys.modules[__name__]
+    sys.modules["api.phone_access"] = sys.modules[__name__]
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger("pantry_planner.phone_access")
+
+DEFAULT_CONFIG = {
+    "phone_access": None,
+    "access_code": "",
+    "household_allowlist": [],
+    "provider_keys": {"gemini": "", "groq": "", "openrouter": ""},
+    "provider_models": {
+        "gemini": "gemini-3.8-flash",
+        "groq": "qwen/qwen3.8-27b",
+        "groq_generate": "openai/gpt-oss-120b",
+        "openrouter": "nvidia/nemotron-3.5-super-vl:free",
+    },
+}
+
+_WARNED_ALLOWLIST = False
+
+
+def get_household_allowlist(env: Optional[dict] = None, cfg: Optional[dict] = None) -> Optional[Set[str]]:
+    """Return set of allowlisted household codes if PANTRY_HOUSEHOLD_ALLOWLIST is set and non-empty.
+    Values are exact codes stripped of leading/trailing whitespace.
+    Never logs or prints the values.
+    """
+    source = env if env is not None else os.environ
+    raw = source.get("PANTRY_HOUSEHOLD_ALLOWLIST")
+    if raw is not None:
+        raw = raw.strip()
+        if not raw:
+            return None
+        codes = {c.strip() for c in raw.split(",") if c.strip()}
+        return codes if codes else None
+
+    # Fallback to config if env var is not present
+    c = cfg if cfg is not None else (load_config() if not os.environ.get("PANTRY_TEST_MODE") or os.environ.get("PANTRY_CONFIG_FILE") else {})
+    cfg_val = c.get("household_allowlist")
+    if isinstance(cfg_val, list):
+        codes = {str(x).strip() for x in cfg_val if str(x).strip()}
+        return codes if codes else None
+    elif isinstance(cfg_val, str) and cfg_val.strip():
+        codes = {x.strip() for x in cfg_val.split(",") if x.strip()}
+        return codes if codes else None
+    return None
+
+
+def check_household_allowlist_startup_warning(force: bool = False, logger_instance=None):
+    """Log a loud warning if MULTI_HOUSEHOLD=1 and PANTRY_HOUSEHOLD_ALLOWLIST is unset."""
+    global _WARNED_ALLOWLIST
+    from db import is_multi_household
+
+    if is_multi_household() and get_household_allowlist() is None:
+        if not _WARNED_ALLOWLIST or force:
+            log = logger_instance or logger
+            log.warning(
+                "MULTI_HOUSEHOLD is on without PANTRY_HOUSEHOLD_ALLOWLIST — any code creates a kitchen. Set the allowlist before public hosting."
+            )
+            _WARNED_ALLOWLIST = True
+
+# Visible ASCII only (no spaces): the code travels in an HTTP header, and
+# header values with other characters can be rejected by phone WebViews.
+CODE_RE = re.compile(r"^[\x21-\x7E]{4,64}$")
+
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+LOOPBACK_BIND = "127.0.0.1"
+NETWORK_BIND = "0.0.0.0"
+
+
+# ------------------------------------------------------------------
+# Config file (machine-local, separate from pantry_planner.db)
+# ------------------------------------------------------------------
+
+
+def config_path() -> Path:
+    override = os.environ.get("PANTRY_CONFIG_FILE")
+    if override:
+        return Path(override)
+    if os.environ.get("PANTRY_TEST_MODE"):
+        raise RuntimeError("CRITICAL: PANTRY_TEST_MODE is active but PANTRY_CONFIG_FILE is not set! Aborting to protect live config.")
+    base = Path(__file__).resolve().parent
+    if base.name == "api":
+        base = base.parent
+    return base / "pantry_desktop_config.json"
+
+
+def load_config() -> dict:
+    """Read the config; any problem falls back to defaults (= phone access off)."""
+    cfg = dict(DEFAULT_CONFIG)
+    try:
+        data = json.loads(config_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return cfg
+    if isinstance(data, dict):
+        if isinstance(data.get("phone_access"), bool):
+            cfg["phone_access"] = data["phone_access"]
+        code = data.get("access_code")
+        # Honour any non-empty stored code as-is (never fail open on odd edits).
+        if isinstance(code, str):
+            cfg["access_code"] = code
+        if "household_allowlist" in data:
+            al = data["household_allowlist"]
+            if isinstance(al, list):
+                cfg["household_allowlist"] = [str(x) for x in al if str(x).strip()]
+            elif isinstance(al, str):
+                cfg["household_allowlist"] = [x.strip() for x in al.split(",") if x.strip()]
+        pk = data.get("provider_keys")
+        if isinstance(pk, dict):
+            cfg["provider_keys"] = {
+                "gemini": str(pk.get("gemini", "") or ""),
+                "groq": str(pk.get("groq", "") or ""),
+                "openrouter": str(pk.get("openrouter", "") or ""),
+            }
+        pm = data.get("provider_models")
+        if isinstance(pm, dict):
+            groq_m = str(pm.get("groq", "") or "qwen/qwen3.8-27b")
+            groq_gen_m = str(pm.get("groq_generate", "") or (groq_m if "groq_generate" not in pm else "openai/gpt-oss-120b"))
+            cfg["provider_models"] = {
+                "gemini": str(pm.get("gemini", "") or "gemini-3.8-flash"),
+                "groq": groq_m,
+                "groq_generate": groq_gen_m,
+                "openrouter": str(pm.get("openrouter", "") or "nvidia/nemotron-3.5-super-vl:free"),
+            }
+    return cfg
+
+
+def save_config(cfg: dict) -> None:
+    """Atomic write so a crash can never leave a half-written config."""
+    path = config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".cfg-", suffix=".tmp")
+    try:
+        out = {
+            "phone_access": cfg.get("phone_access"),
+            "access_code": cfg.get("access_code", ""),
+        }
+        if cfg.get("household_allowlist"):
+            out["household_allowlist"] = cfg["household_allowlist"]
+        pk = cfg.get("provider_keys")
+        if isinstance(pk, dict) and any(pk.values()):
+            out["provider_keys"] = pk
+        pm = cfg.get("provider_models")
+        if isinstance(pm, dict) and any(pm.values()):
+            out["provider_models"] = pm
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(out, f, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def desired_bind_host(cfg: Optional[dict] = None) -> str:
+    """Where the server SHOULD listen: network only when phone access is on."""
+    cfg = cfg if cfg is not None else load_config()
+    return NETWORK_BIND if cfg.get("phone_access") is True else LOOPBACK_BIND
+
+
+# ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+
+
+def is_loopback(request: Request) -> bool:
+    client = request.client
+    if client is None:
+        return False
+    host = client.host or ""
+    return host in LOOPBACK_HOSTS or host.startswith("::ffff:127.")
+
+
+def lan_ipv4_addresses() -> List[str]:
+    """This PC's home-network IPv4 addresses, best guess (primary first)."""
+    found: List[str] = []
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.settimeout(0.3)
+        # UDP "connect" only selects the outbound interface; no packet is sent.
+        probe.connect(("192.0.2.1", 9))
+        found.append(probe.getsockname()[0])
+    except OSError:
+        pass
+    finally:
+        probe.close()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.append(info[4][0])
+    except OSError:
+        pass
+    out: List[str] = []
+    for ip in found:
+        if ip.startswith("127.") or ip.startswith("169.254.") or ip == "0.0.0.0":
+            continue
+        if ip not in out:
+            out.append(ip)
+    return out
+
+
+def _port(request: Request) -> int:
+    return request.url.port or 80
+
+
+def _urls(request: Request) -> List[str]:
+    port = _port(request)
+    return [f"http://{ip}:{port}" for ip in lan_ipv4_addresses()]
+
+
+def _restart_needed(state, cfg: dict) -> bool:
+    bound = getattr(state, "bind_host", None)
+    if bound is None:  # unknown (e.g. started by hand with plain uvicorn)
+        return False
+    return bound != desired_bind_host(cfg)
+
+
+def _info(request: Request, cfg: Optional[dict] = None) -> dict:
+    cfg = cfg if cfg is not None else load_config()
+    state = request.app.state
+    bound = getattr(state, "bind_host", None)
+    return {
+        "phone_access": cfg["phone_access"],  # null until the user has been asked
+        "listening_on_network": None if bound is None else bound != LOOPBACK_BIND,
+        "restart_required": _restart_needed(state, cfg),
+        "can_restart": callable(getattr(state, "request_restart", None)),
+        "boot_id": getattr(state, "boot_id", None),
+        "access_code": cfg["access_code"] or None,
+        "port": _port(request),
+        "urls": _urls(request),
+    }
+
+
+def _require_loopback(request: Request) -> None:
+    if not is_loopback(request):
+        raise HTTPException(status_code=403, detail="This setting can only be changed on the desktop.")
+
+
+# ------------------------------------------------------------------
+# Middleware
+# ------------------------------------------------------------------
+
+
+class PhoneAccessMiddleware(BaseHTTPMiddleware):
+    """Gate for non-loopback clients. Add it BEFORE CORSMiddleware so the CORS
+    layer wraps it and 401/403 replies still carry CORS headers (otherwise a
+    phone app would see a bare network error instead of a readable message)."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        check_household_allowlist_startup_warning()
+
+    async def dispatch(self, request: Request, call_next):
+        from db import is_multi_household, current_household_var, init_db
+
+        path = request.url.path
+        multi = is_multi_household()
+
+        if multi:
+            # /health, /healthz, and static assets bypass household token requirement
+            if path in ("/health", "/healthz") or not path.startswith("/api/"):
+                return await call_next(request)
+
+            # In multi-household mode, every /api/ request carries the household access code
+            token = (
+                request.headers.get("x-pantry-token")
+                or request.headers.get("X-Pantry-Token")
+                or request.query_params.get("household")
+                or request.query_params.get("token")
+                or ""
+            )
+
+            if not token:
+                return JSONResponse(
+                    {"detail": "Household access code required. Enter your code in Settings."},
+                    status_code=401,
+                )
+
+            allowlist = get_household_allowlist()
+            if allowlist is not None and token not in allowlist:
+                return JSONResponse(
+                    {"detail": "That kitchen code isn't recognized. Check the code and try again."},
+                    status_code=401,
+                )
+
+            # Set current household context and ensure tables are initialized
+            reset_token = current_household_var.set(token)
+            try:
+                init_db(token)
+                response = await call_next(request)
+                return response
+            finally:
+                current_household_var.reset(reset_token)
+
+        # Standard desktop LAN behavior (MULTI_HOUSEHOLD unset)
+        if is_loopback(request):
+            return await call_next(request)
+
+        cfg = load_config()
+        if cfg["phone_access"] is not True:
+            return JSONResponse(
+                {"detail": "Phone access is turned off in the Pantry Planner desktop app."},
+                status_code=403,
+            )
+
+        if path.startswith("/api/desktop/"):
+            return JSONResponse(
+                {"detail": "This setting can only be changed on the desktop."}, status_code=403
+            )
+
+        code = cfg["access_code"]
+        if code and path.startswith("/api/"):
+            supplied = request.headers.get("x-pantry-token", "")
+            if not supplied:
+                return JSONResponse(
+                    {"detail": "This desktop requires an access code. Enter it in the app's server settings."},
+                    status_code=401,
+                )
+            if not secrets.compare_digest(supplied.encode("utf-8"), code.encode("utf-8")):
+                return JSONResponse({"detail": "Wrong access code."}, status_code=401)
+
+        return await call_next(request)
+
+
+# ------------------------------------------------------------------
+# Loopback-only API (used by the desktop UI's "Connect Phone" page)
+# ------------------------------------------------------------------
+
+router = APIRouter(prefix="/api/desktop", tags=["desktop"])
+
+
+class PhoneAccessIn(BaseModel):
+    # Fields left out of the request are left unchanged.
+    enabled: Optional[bool] = None
+    access_code: Optional[str] = None  # "" or null clears the code
+
+
+@router.get("/phone-access")
+def get_phone_access(request: Request):
+    _require_loopback(request)
+    return _info(request)
+
+
+@router.put("/phone-access")
+def put_phone_access(body: PhoneAccessIn, request: Request):
+    _require_loopback(request)
+    cfg = load_config()
+    fields = body.model_fields_set
+
+    if "enabled" in fields and body.enabled is not None:
+        cfg["phone_access"] = bool(body.enabled)
+
+    if "access_code" in fields:
+        code = (body.access_code or "").strip()
+        if code and not CODE_RE.match(code):
+            raise HTTPException(
+                status_code=422,
+                detail="The access code must be 4-64 visible characters with no spaces.",
+            )
+        cfg["access_code"] = code
+
+    save_config(cfg)
+
+    restarting = False
+    restart = getattr(request.app.state, "request_restart", None)
+    if callable(restart) and _restart_needed(request.app.state, cfg):
+        restart()
+        restarting = True
+
+    info = _info(request, cfg)
+    info["restarting"] = restarting
+    return info
+
+
+@router.get("/qr.svg")
+def qr_svg(request: Request, url: str = Query(..., max_length=200)):
+    _require_loopback(request)
+    if url not in _urls(request):
+        raise HTTPException(status_code=400, detail="Unknown address.")
+    try:
+        import qrcode
+        import qrcode.image.svg
+    except ImportError:
+        raise HTTPException(
+            status_code=501, detail="QR codes need the 'qrcode' package: pip install qrcode"
+        )
+    img = qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=2)
+    buf = io.BytesIO()
+    img.save(buf)
+    return Response(
+        buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-store"}
+    )

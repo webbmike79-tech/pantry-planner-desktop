@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pastaBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#801515"/>
+      <stop offset="50%" stop-color="#b83b1d"/>
+      <stop offset="100%" stop-color="#e86a38"/>
+    </linearGradient>
+    <linearGradient id="sauceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c92a2a"/>
+      <stop offset="100%" stop-color="#861c1c"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="200" fill="url(#pastaBg)"/>
+  <!-- Bowl shadow -->
+  <ellipse cx="200" cy="165" rx="130" ry="24" fill="#000000" opacity="0.3"/>
+  <!-- Pasta Bowl -->
+  <ellipse cx="200" cy="145" rx="120" ry="32" fill="#ffffff"/>
+  <ellipse cx="200" cy="140" rx="110" ry="26" fill="#f8f9fa"/>
+  <!-- Spaghetti Twirls -->
+  <g fill="none" stroke="#f6c244" stroke-width="5" stroke-linecap="round">
+    <path d="M130,140 C140,110 180,110 200,135 C220,160 260,130 270,140"/>
+    <path d="M140,130 C160,105 210,120 230,130 C250,140 270,115 260,135"/>
+    <path d="M150,145 C170,125 190,145 220,125 C240,110 255,145 240,150"/>
+    <path d="M165,135 C185,115 215,115 235,140"/>
+  </g>
+  <!-- Rich Tomato Sauce Center -->
+  <path d="M170,135 C180,120 220,120 235,132 C245,142 210,152 195,148 C180,145 165,145 170,135 Z" fill="url(#sauceGrad)"/>
+  <!-- Basil Leaves -->
+  <path d="M200,125 C190,115 195,100 205,105 C215,110 210,125 200,125 Z" fill="#2f9e44"/>
+  <path d="M198,125 C205,118 220,118 215,126 C210,132 198,128 198,125 Z" fill="#37b24d"/>
+  <!-- Parmesan dusting -->
+  <circle cx="175" cy="130" r="1.5" fill="#fff9db"/>
+  <circle cx="185" cy="140" r="1.5" fill="#fff9db"/>
+  <circle cx="218" cy="135" r="1.5" fill="#fff9db"/>
+  <circle cx="228" cy="128" r="1.5" fill="#fff9db"/>
+  <circle cx="205" cy="145" r="1.5" fill="#fff9db"/>
+  <text x="20" y="38" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="bold" opacity="0.9" letter-spacing="1">🍝 ITALIAN &amp; PASTA</text>
+</svg>

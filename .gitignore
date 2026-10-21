@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 pantry_planner.db
+pantry_desktop_config.json
+pantry_providers_status.json
+tests/fixtures/vision/*.jpg
+tests/fixtures/vision/*.jpeg
+tests/fixtures/vision/*.png
 
 # Secrets and local data (added 2026-10-16)
 .env

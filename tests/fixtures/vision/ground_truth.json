@@ -1,0 +1,108 @@
+{
+  "spice_rack": {
+    "location": "Cupboard / Pantry",
+    "filename": "879_23_t1ce (1).jpg",
+    "camera_filename": "20261018_182811.jpg",
+    "ground_truth": [
+      "Slap Ya Mama Cajun Seasoning",
+      "Taj\u00edn",
+      "Garlic Sea Salt",
+      "Thundering Longhorn Rub",
+      "Taco Seasoning packets",
+      "Ground Ginger",
+      "Pinto Bean Seasoning",
+      "Bay Leaves",
+      "McCormick Sweet Onion Bacon Seasoning",
+      "Cayenne Pepper",
+      "Whole Black Pepper",
+      "Black Peppercorns",
+      "Crushed Red Pepper"
+    ]
+  },
+  "pantry": {
+    "location": "Cupboard / Pantry",
+    "filename": "880_24_bwtv.jpg",
+    "camera_filename": "20261018_182817.jpg",
+    "ground_truth": [
+      "Clabber Girl Baking Powder",
+      "Del Monte Pickled Beets",
+      "Richfield Orchard Diced Pears",
+      "Mission Pride Sliced Peaches",
+      "Apple Sauce",
+      "Pineapple Chunks",
+      "Tteokbokki cups",
+      "Whole Kernel Corn",
+      "Cut Green Beans",
+      "Diced Carrots",
+      "Libby's Sliced Peaches",
+      "Glory Butter Beans",
+      "Popeye Spinach",
+      "La Victoria Green Chiles",
+      "Campbell's Soup",
+      "Stove Top Stuffing",
+      "Taco Shells",
+      "Macaroni & Cheese",
+      "Lipton Iced Tea",
+      "White Rice",
+      "Ramen packets",
+      "Peanut Butter",
+      "Smucker's Jam",
+      "La Coste\u00f1a Chipotles",
+      "Heinz Gravy",
+      "Doritos",
+      "Tostitos",
+      "Assorted Cookies"
+    ]
+  },
+  "fridge": {
+    "location": "Fridge",
+    "filename": "881_25_coyv.jpg",
+    "camera_filename": "20261018_182847.jpg",
+    "ground_truth": [
+      "Heinz Tomato Ketchup",
+      "Premier Protein Shakes",
+      "Taco Casa Hot Sauce",
+      "Eggs",
+      "Ground Beef",
+      "Iced Tea (pitcher)",
+      "Pickled Vegetables",
+      "Potato Salad (container)",
+      "Butter Spread (tub)",
+      "Tomato",
+      "Chocolate Chip Cookies (package)"
+    ]
+  },
+  "fridge_door": {
+    "location": "Fridge",
+    "filename": "882_26_umy5.jpg",
+    "camera_filename": "20261018_182856.jpg",
+    "ground_truth": [
+      "Mrs. Renfro's Ghost Pepper Salsa",
+      "Louisiana Tartar Sauce",
+      "Kraft Dressing",
+      "Miracle Whip",
+      "Steak Sauce",
+      "Masterpiece Hickory Brown Sugar BBQ Sauce",
+      "Cholula Hot Sauce",
+      "La Coste\u00f1a Jalape\u00f1os",
+      "Mustard",
+      "Soy Sauce",
+      "Soda (2L bottle)"
+    ]
+  },
+  "freezer": {
+    "location": "Freezer",
+    "filename": "883_27_s2ng.jpg",
+    "camera_filename": "20261018_182909.jpg",
+    "ground_truth": [
+      "Corn on the Cob",
+      "Mixed Vegetables",
+      "Broccoli Florets",
+      "Neapolitan Ice Cream Sandwiches",
+      "Tai Pei Frozen Meal",
+      "Sausage",
+      "Ice Cream / Frozen Dessert box",
+      "Frozen Vegetables (bags)"
+    ]
+  }
+}
