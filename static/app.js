@@ -17,7 +17,7 @@ const GROCERY_STORE_STORAGE = "pantry_grocery_store";
 const GROCERY_ZIP_STORAGE = "pantry_grocery_zip";
 
 
-let HOSTED_DEFAULT_SERVER_URL = "";
+let HOSTED_DEFAULT_SERVER_URL = "https://pantry-planner1.onrender.com";
 const KITCHEN_NAME_STORAGE = "pantry_kitchen_name";
 const LOCATIONS = ["Fridge", "Freezer", "Cupboard / Pantry"];
 const CATEGORIES = [
@@ -138,7 +138,7 @@ if (typeof window !== "undefined") {
 function isHostedMode() {
   if (isHostedDefaultConfigured()) return true;
   const url = storedServerUrl();
-  if (url && (url.includes("hf.space") || url.includes("huggingface.co"))) return true;
+  if (url && (url.includes("hf.space") || url.includes("huggingface.co") || url.includes("onrender.com"))) return true;
   if (typeof window !== "undefined" && window.__FORCE_HOSTED_MODE__) return true;
   return false;
 }
