@@ -2321,12 +2321,14 @@ function discardScanImage(flowKey) {
     selectedPhotoFiles[flowKey] = null;
   }
   const fileInput = flowKey === "scan" ? $("#scan-file") : $("#receipt-file");
+  const cameraInput = flowKey === "scan" ? $("#scan-camera-file") : null;
   const nameEl = flowKey === "scan" ? $("#scan-file-name") : $("#receipt-file-name");
   const previewEl = flowKey === "scan" ? $("#scan-preview") : $("#receipt-preview");
   const wrapper = flowKey === "scan" ? $("#scan-preview-wrapper") : $("#receipt-preview-wrapper");
   const btn = flowKey === "scan" ? $("#scan-btn") : $("#receipt-btn");
 
   if (fileInput) fileInput.value = "";
+  if (cameraInput) cameraInput.value = "";
   if (nameEl) nameEl.textContent = flowKey === "scan" ? "No photo chosen yet" : "No photos chosen yet";
   if (previewEl) {
     if (previewEl.dataset && previewEl.dataset.objectUrl) {
@@ -2373,7 +2375,7 @@ function applyChosenPhotos(flowKey, files, nameEl, previewEl, btn) {
 }
 
 function wirePhotoInput(fileInput, nameEl, previewEl, btn, flowKey = "scan") {
-  const labelEl = fileInput.closest("label.file-btn");
+  if (!fileInput) return;
   const allowMultiple = fileInput.hasAttribute("multiple");
 
   // In standard browser / PWA: standard input change handler
@@ -2384,7 +2386,79 @@ function wirePhotoInput(fileInput, nameEl, previewEl, btn, flowKey = "scan") {
     }
   });
 
-  // In Capacitor (native app): intercept click to offer explicit Camera vs Gallery choice
+  if (flowKey === "scan") {
+    const cameraInput = $("#scan-camera-file");
+    const cameraLabel = $("#scan-camera-btn");
+    const galleryLabel = $("#scan-gallery-btn");
+
+    if (cameraInput) {
+      cameraInput.addEventListener("change", () => {
+        const files = Array.from(cameraInput.files || []);
+        if (files.length) {
+          applyChosenPhotos(flowKey, files, nameEl, previewEl, btn);
+        }
+      });
+    }
+
+    if (cameraLabel) {
+      cameraLabel.addEventListener("click", async (e) => {
+        const cameraPlugin = getCapacitorCamera();
+        if (isCapacitor() && cameraPlugin) {
+          e.preventDefault();
+          e.stopPropagation();
+          try {
+            const photo = await cameraPlugin.getPhoto({
+              quality: 90,
+              allowEditing: false,
+              resultType: "dataUrl",
+              source: "CAMERA",
+            });
+            if (photo && photo.dataUrl) {
+              const file = await dataUrlToFile(photo.dataUrl, `camera_${Date.now()}.${photo.format || "jpeg"}`);
+              applyChosenPhotos(flowKey, [file], nameEl, previewEl, btn);
+            }
+          } catch (err) {
+            if (!String(err).includes("cancelled") && !String(err).includes("User cancelled")) {
+              console.warn("Camera capture error:", err);
+              toast("Camera unavailable: " + (err.message || err));
+            }
+          }
+        }
+        // In mobile browser / PWA door: click propagates to #scan-camera-file with capture="environment"
+      });
+    }
+
+    if (galleryLabel) {
+      galleryLabel.addEventListener("click", async (e) => {
+        const cameraPlugin = getCapacitorCamera();
+        if (isCapacitor() && cameraPlugin) {
+          e.preventDefault();
+          e.stopPropagation();
+          try {
+            const photo = await cameraPlugin.getPhoto({
+              quality: 90,
+              allowEditing: false,
+              resultType: "dataUrl",
+              source: "PHOTOS",
+            });
+            if (photo && photo.dataUrl) {
+              const file = await dataUrlToFile(photo.dataUrl, `gallery_${Date.now()}.${photo.format || "jpeg"}`);
+              applyChosenPhotos(flowKey, [file], nameEl, previewEl, btn);
+            }
+          } catch (err) {
+            if (!String(err).includes("cancelled") && !String(err).includes("User cancelled")) {
+              console.warn("Gallery pick error:", err);
+            }
+          }
+        }
+        // In mobile browser / PWA door: click propagates to #scan-file (no capture)
+      });
+    }
+    return;
+  }
+
+  // Receipt flow (modal retained for Capacitor app)
+  const labelEl = fileInput.closest("label.file-btn");
   if (labelEl) {
     labelEl.addEventListener("click", async (e) => {
       const cameraPlugin = getCapacitorCamera();
@@ -2478,10 +2552,11 @@ async function scanShelfPhoto() {
     return;
   }
   const fileInput = $("#scan-file");
+  const cameraInput = $("#scan-camera-file");
   const msg = $("#scan-msg");
   const btn = $("#scan-btn");
 
-  const chosenFile = (selectedPhotoFiles.scan && selectedPhotoFiles.scan[0]) || (fileInput.files && fileInput.files[0]);
+  const chosenFile = (selectedPhotoFiles.scan && selectedPhotoFiles.scan[0]) || (cameraInput && cameraInput.files && cameraInput.files[0]) || (fileInput && fileInput.files && fileInput.files[0]);
   if (!chosenFile) return;
 
   setMsg(msg, "");

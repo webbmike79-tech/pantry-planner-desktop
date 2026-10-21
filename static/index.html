@@ -248,10 +248,16 @@
       <p class="transparency-note" style="font-size: 0.85rem; color: var(--muted); margin: 8px 0 12px; line-height: 1.4;">
         🔒 Your photo is read, then deleted — we keep the item list, not the picture.
       </p>
-      <label class="btn btn-primary file-btn">
-        📷 Take or choose photo
-        <input id="scan-file" type="file" accept="image/*" hidden>
-      </label>
+      <div class="btn-row photo-choice-row" style="margin-bottom: 8px;">
+        <label class="btn btn-primary file-btn" id="scan-camera-btn">
+          📸 Take Photo
+          <input id="scan-camera-file" type="file" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="btn btn-accent file-btn" id="scan-gallery-btn">
+          🖼️ Choose from Gallery
+          <input id="scan-file" type="file" accept="image/*" hidden>
+        </label>
+      </div>
       <p class="file-name" id="scan-file-name">No photo chosen yet</p>
       <div id="scan-preview-wrapper" style="position: relative; margin: 8px 0;" hidden>
         <img id="scan-preview" class="photo-preview" alt="Shelf photo preview" hidden>
