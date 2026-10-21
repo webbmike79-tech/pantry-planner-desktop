@@ -289,21 +289,38 @@ def get_inventory(household: Optional[str] = None) -> List[dict]:
     inv_tbl, _, _ = db.get_table_names(household)
     conn = db.get_db_connection()
     c = conn.cursor()
-    c.execute(f"SELECT * FROM {inv_tbl} ORDER BY location, category, item_name")
+    c.execute(
+        f"SELECT id, location, item_name, category, quantity, unit, updated_at FROM {inv_tbl} ORDER BY location, category, item_name"
+    )
     rows = c.fetchall()
     conn.close()
-    return [
-        {
-            "id": int(r["id"]),
-            "location": r["location"],
-            "item_name": r["item_name"],
-            "category": r["category"],
-            "quantity": float(r["quantity"]) if r["quantity"] is not None else 0.0,
-            "unit": r["unit"],
-            "updated_at": r["updated_at"],
-        }
-        for r in rows
-    ]
+    items = []
+    for r in rows:
+        try:
+            items.append(
+                {
+                    "id": int(r["id"]),
+                    "location": r["location"],
+                    "item_name": r["item_name"],
+                    "category": r["category"],
+                    "quantity": float(r["quantity"]) if r["quantity"] is not None else 0.0,
+                    "unit": r["unit"],
+                    "updated_at": r["updated_at"],
+                }
+            )
+        except (TypeError, KeyError, IndexError):
+            items.append(
+                {
+                    "id": int(r[0]),
+                    "location": r[1],
+                    "item_name": r[2],
+                    "category": r[3],
+                    "quantity": float(r[4]) if r[4] is not None else 0.0,
+                    "unit": r[5],
+                    "updated_at": r[6],
+                }
+            )
+    return items
 
 
 def clear_inventory(household: Optional[str] = None):

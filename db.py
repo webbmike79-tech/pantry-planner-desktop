@@ -107,6 +107,10 @@ def get_db_connection():
             try:
                 import libsql_experimental as libsql
                 conn = libsql.connect(database=db_url, auth_token=auth_token)
+                try:
+                    conn.row_factory = sqlite3.Row
+                except Exception:
+                    pass
                 return conn
             except ImportError:
                 import libsql_client
