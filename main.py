@@ -998,6 +998,11 @@ def analyze_storage_photo(keys, image: Image.Image, location: str) -> Tuple[List
     - NEVER output a brand or product name unless its text is actually legible in the image. If a label is visible but unreadable, name the item by its visible kind only ("BBQ Sauce", not an invented brand).
     - NEVER claim contents you cannot see. Opaque, frosted, or sealed items whose contents aren't identifiable from visible text or clear appearance get a descriptive visible-form name (rule 3 of the hierarchy above) — never a guessed food, species, or cut. (A frosty bag is "Clear Bag with Frozen Meat", never "Frozen Pheasant".)
     - When torn between two specific readings, choose the LESS specific honest one.
+
+    VISION GROUNDING & COUNTING RULES (MANDATORY):
+    - STRICT TRANSCRIPTION: Transcribe brand and product text only as legibly shown on the item itself. Never substitute a similar-sounding, similar-looking, or "more common" brand or product (Oak Farms != Oak Valley; Oak Farms Milk != Oak Valley Simple Syrup; Dr Pepper != Coca-Cola). If the brand text is not legible, report the item generically (e.g. "milk" / "cola, 2L") or as unknown — never guess a brand.
+    - CONFIDENCE THRESHOLD: Include an item, brand, quantity, or count in the inventory ONLY if you are confident it is actually visible in the photo. Low-confidence reads must be omitted or marked unknown, never filled in with a plausible guess. This applies doubly to counts: count only distinct physical items actually visible, and NEVER multiply a single visible item into a runaway count (44, 56) without that many distinct items actually visible.
+    - NO ADJACENT-ITEM GHOSTS: Do not invent items that "would usually sit next to" a seen item (no phantom vinegar next to syrup, no condiment inferred from a neighboring bottle). Every inventoried item must correspond to a visible item in the photo.
     """
     parsed, served_by = _generate_structured(
         keys, [image, prompt], VisionInventoryResult, 0.2, f"scan your {location} photo"

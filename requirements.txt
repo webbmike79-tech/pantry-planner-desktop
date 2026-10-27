@@ -8,3 +8,4 @@ python-multipart
 pywebview
 qrcode
 libsql-client
+certifi>=2026.10.23

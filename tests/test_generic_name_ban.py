@@ -126,6 +126,67 @@ class TestGenericNameBan(unittest.TestCase):
         self.assertIn('"Clear Bag with Frozen Meat", never "Frozen Pheasant"', prompt_text)
         self.assertIn("When torn between two specific readings, choose the LESS specific honest one", prompt_text)
 
+    def test_scan_prompt_contains_strict_transcription_rule(self):
+        """Assert scan prompt contains strict brand/text transcription rules and examples."""
+        mock_image = MagicMock()
+        captured_contents = []
+
+        def mock_gen(keys, contents, schema, temp, what):
+            captured_contents.append(contents)
+            return VisionInventoryResult(items=[]), "gemini"
+
+        patch_target = "main._generate_structured" if "main" in sys.modules else "api.main._generate_structured"
+        with patch(patch_target, side_effect=mock_gen):
+            analyze_storage_photo(MagicMock(), mock_image, "Fridge")
+
+        prompt_text = captured_contents[0][1]
+        self.assertIn("VISION GROUNDING & COUNTING RULES (MANDATORY)", prompt_text)
+        self.assertIn("STRICT TRANSCRIPTION", prompt_text)
+        self.assertIn("Transcribe brand and product text only as legibly shown on the item itself", prompt_text)
+        self.assertIn('Never substitute a similar-sounding, similar-looking, or "more common" brand', prompt_text)
+        self.assertIn("Oak Farms != Oak Valley", prompt_text)
+        self.assertIn("Dr Pepper != Coca-Cola", prompt_text)
+        self.assertIn('report the item generically (e.g. "milk" / "cola, 2L") or as unknown — never guess a brand', prompt_text)
+
+    def test_scan_prompt_contains_confidence_threshold_rule(self):
+        """Assert scan prompt contains confidence threshold and anti-runaway-count rules."""
+        mock_image = MagicMock()
+        captured_contents = []
+
+        def mock_gen(keys, contents, schema, temp, what):
+            captured_contents.append(contents)
+            return VisionInventoryResult(items=[]), "gemini"
+
+        patch_target = "main._generate_structured" if "main" in sys.modules else "api.main._generate_structured"
+        with patch(patch_target, side_effect=mock_gen):
+            analyze_storage_photo(MagicMock(), mock_image, "Cupboard / Pantry")
+
+        prompt_text = captured_contents[0][1]
+        self.assertIn("CONFIDENCE THRESHOLD", prompt_text)
+        self.assertIn("ONLY if you are confident it is actually visible in the photo", prompt_text)
+        self.assertIn("Low-confidence reads must be omitted or marked unknown, never filled in with a plausible guess", prompt_text)
+        self.assertIn("NEVER multiply a single visible item into a runaway count (44, 56) without that many distinct items actually visible", prompt_text)
+
+    def test_scan_prompt_contains_no_adjacent_ghosts_rule(self):
+        """Assert scan prompt forbids inventing adjacent-item / condiment ghosts."""
+        mock_image = MagicMock()
+        captured_contents = []
+
+        def mock_gen(keys, contents, schema, temp, what):
+            captured_contents.append(contents)
+            return VisionInventoryResult(items=[]), "gemini"
+
+        patch_target = "main._generate_structured" if "main" in sys.modules else "api.main._generate_structured"
+        with patch(patch_target, side_effect=mock_gen):
+            analyze_storage_photo(MagicMock(), mock_image, "Fridge")
+
+        prompt_text = captured_contents[0][1]
+        self.assertIn("NO ADJACENT-ITEM GHOSTS", prompt_text)
+        self.assertIn('Do not invent items that "would usually sit next to" a seen item', prompt_text)
+        self.assertIn("no phantom vinegar next to syrup", prompt_text)
+        self.assertIn("no condiment inferred from a neighboring bottle", prompt_text)
+        self.assertIn("Every inventoried item must correspond to a visible item in the photo", prompt_text)
+
     def test_mocked_result_unchanged_by_prompt_rule_extension(self):
         """Prompt-only change does not affect mock parsing or naming ban guard behavior."""
         mock_result = VisionInventoryResult(items=[
